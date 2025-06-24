@@ -1,0 +1,41 @@
+# === NODE / NPM ===
+node_modules/
+**/node_modules/
+
+# === ENV FILES ===
+.env
+.env.local
+.env.development
+.env.production
+**/.env
+
+# === LOG FILES ===
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# === BUILD / DIST / NEXT.JS ===
+dist/
+build/
+.next/
+out/
+
+# === OS & EDITOR FILES ===
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# === COVERAGE & TEST REPORTS ===
+coverage/
+*.lcov
+
+# === DATABASE ===
+*.sqlite
+*.sqlite3
+*.bak
+# === TEMP FILES ===
+tmp/    
