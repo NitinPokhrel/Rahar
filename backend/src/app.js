@@ -1,7 +1,7 @@
-import express from 'express';
-import cors from "cors";
-import cookieParser from 'cookie-parser';
-import userRouter from './routes/user.routes.js';
+const express = require('express');
+const cors = require('cors');
+const cookieParser = require('cookie-parser');
+
 
 const app = express();
 
@@ -19,4 +19,4 @@ app.use(express.static("public"));
 // User routes
 // app.use('/api/v1/users', userRouter);
 
-export { app };
+module.exports = { app };

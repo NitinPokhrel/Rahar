@@ -1,19 +1,16 @@
-import { app } from "./app.js";
-import dotenv from "dotenv";
-import sequelize from "./db/db.js";
-
-
-
-
+const dotenv = require('dotenv');
 dotenv.config()
+const {app} = require('./app.js');
+const {sequelize} = require('./db/db.js');
+
 
 
 sequelize.sync({ force: false }) 
   .then(() => {
-    console.log("Users table synced successfully.");
+    console.log("table synced successfully.");
   })
   .catch((err) => {
-    console.error("Failed to sync users table:", err);
+    console.error("Failed to sync table:", err);
   });
 
 
