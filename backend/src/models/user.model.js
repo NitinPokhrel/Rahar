@@ -1,109 +1,128 @@
-import { DataTypes } from 'sequelize';
-import sequelize from '../db/db.js';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+const { DataTypes, Model } = require('sequelize');
+const bcrypt = require('bcryptjs');
 
-const User = sequelize.define('User', {
-  id: {
-    type: DataTypes.UUID, 
-    defaultValue: DataTypes.UUIDV4,
-    primaryKey: true
-  },
-  displayName: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-  email: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    unique: true,
-    validate: {
-      isEmail: true
+// User Model
+const User = (sequelize) => {
+  class User extends Model {
+    static associate(models) {
+      User.hasMany(models.Order, { foreignKey: 'userId', as: 'orders' });
+      User.hasMany(models.Cart, { foreignKey: 'userId', as: 'cartItems' });
+      User.hasMany(models.Review, { foreignKey: 'userId', as: 'reviews' });
+      User.hasMany(models.Wishlist, { foreignKey: 'userId', as: 'wishlistItems' });
     }
-  },
-  passwordHash: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-  phoneNumber: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-  address: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-  city: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-  state: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-  zipCode: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-  country: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-  role: {
-    type: DataTypes.ENUM('customer', 'vendor', 'admin'),
-    defaultValue: 'customer',
-    allowNull: false
-  },
-  image: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-  refreshToken: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-  createdAt: {
-    type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW
-  },
-  updatedAt: {
-    type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW
+
+    // Instance method to check password
+    async checkPassword(password) {
+      return await bcrypt.compare(password, this.password);
+    }
+
+    // Instance method to hash password
+    async hashPassword() {
+      if (this.changed('password')) {
+        this.password = await bcrypt.hash(this.password, 12);
+      }
+    }
   }
-}, {
-  tableName: 'users',
-  timestamps: true
-});
 
-// Sequelize Hook to hash password before saving
-User.beforeSave(async (user) => {
-  if (user.changed('passwordHash')) {
-    user.passwordHash = await bcrypt.hash(user.passwordHash, 10);
-  }
-});
+  User.init({
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true
+    },
+    firstName: {
+      type: DataTypes.STRING(50),
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'First name is required' },
+        len: { args: [2, 50], msg: 'First name must be between 2-50 characters' }
+      }
+    },
+    lastName: {
+      type: DataTypes.STRING(50),
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Last name is required' },
+        len: { args: [2, 50], msg: 'Last name must be between 2-50 characters' }
+      }
+    },
+    email: {
+      type: DataTypes.STRING(100),
+      allowNull: false,
+      unique: { msg: 'Email already exists' },
+      validate: {
+        isEmail: { msg: 'Invalid email format' },
+        notEmpty: { msg: 'Email is required' }
+      }
+    },
+    password: {
+      type: DataTypes.STRING(255),
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Password is required' },
+        len: { args: [6, 255], msg: 'Password must be at least 6 characters' }
+      }
+    },
+    phone: {
+      type: DataTypes.STRING(20),
+      validate: {
+        is: { args: /^[\+]?[1-9][\d]{0,15}$/, msg: 'Invalid phone number format' }
+      }
+    },
+    dateOfBirth: {
+      type: DataTypes.DATEONLY,
+      validate: {
+        isDate: { msg: 'Invalid date format' },
+        isBefore: { args: new Date().toISOString(), msg: 'Date of birth cannot be in the future' }
+      }
+    },
+    gender: {
+      type: DataTypes.ENUM('male', 'female', 'other', 'prefer_not_to_say'),
+      defaultValue: 'prefer_not_to_say'
+    },
+    role: {
+      type: DataTypes.ENUM('customer', 'admin', 'super_admin'),
+      defaultValue: 'customer',
+      allowNull: false
+    },
+    isActive: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true
+    },
+    emailVerified: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false
+    },
+    avatar: {
+      type: DataTypes.TEXT,
+      validate: {
+        isUrl: { msg: 'Avatar must be a valid URL' }
+      }
+    },
+    lastLoginAt: DataTypes.DATE,
+    passwordResetToken: DataTypes.STRING,
+    passwordResetExpires: DataTypes.DATE,
+    emailVerificationToken: DataTypes.STRING
+  }, {
+    sequelize,
+    modelName: 'User',
+    tableName: 'users',
+    timestamps: true,
+    paranoid: true, // Soft delete
+    hooks: {
+      beforeSave: async (user) => {
+        await user.hashPassword();
+      }
+    },
+    indexes: [
+      { fields: ['email'] },
+      { fields: ['role'] },
+      { fields: ['isActive'] }
+    ]
+  });
 
-
-// Instance method to verify password
-User.prototype.isPasswordCorrect = async function(password) {
-  return await bcrypt.compare(password, this.passwordHash);
+  return User;
 };
 
-// Instance method to generate access token
-User.prototype.generateAccessToken = function() {
-  return jwt.sign(
-    { id: this.id, email: this.email, role: this.role },
-    process.env.ACCESS_TOKEN_SECRET,
-    { expiresIn: process.env.ACCESS_TOKEN_EXPIRY }
-  );
-};
 
-// Instance method to generate refresh token
-User.prototype.generateRefreshToken = function() {
-  return jwt.sign(
-    { id: this.id },
-    process.env.REFRESH_TOKEN_SECRET,
-    { expiresIn: process.env.REFRESH_TOKEN_EXPIRY }
-  );
-};
-
-export default User;
+  module.exports = User;

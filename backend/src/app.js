@@ -1,8 +1,10 @@
+
 import express from "express";
 // import cors from "cors";
 import cookieParser from "cookie-parser";
 import userRouter from "./routes/user.route.js";
 import { clerkMiddleware } from '@clerk/express'
+
 
 
 const app = express();
@@ -37,3 +39,4 @@ app.get("/",(req,res)=>{
 
 
 export { app };
+
