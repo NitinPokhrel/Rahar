@@ -1,7 +1,6 @@
 const Sequelize = require('sequelize');
 const { sequelize } = require('../db/db');
 const UserDef = require('./user.model');
-const AddressDef = require('./address.model');
 const CartDef = require('./cart.model');
 const CategoryDef = require('./category.model');
 const CouponDef = require('./coupon.model');
@@ -9,7 +8,6 @@ const CouponUsageDef = require('./couponUsage.model');
 const NewsletterSubscriptionDef = require('./newsLetterSubscription.model');
 const OrderDef = require('./order.model');
 const OrderItemDef = require('./orderItem.model');
-const OrderStatusDef = require('./orderStatus.model');
 const ProductDef = require('./product.model');
 const ProductVarientDef = require('./productVarient.model');
 const ReviewDef = require('./review.model');
@@ -19,7 +17,6 @@ const WishlistDef = require('./wishlist.model');
 // Initialize each model with the sequelize instance
 const models = {
   User: UserDef(sequelize),
-  Address: AddressDef(sequelize),
   Cart: CartDef(sequelize),
   Category: CategoryDef(sequelize),
   Coupon: CouponDef(sequelize),
@@ -27,7 +24,6 @@ const models = {
   NewsletterSubscription: NewsletterSubscriptionDef(sequelize),
   Order: OrderDef(sequelize),
   OrderItem: OrderItemDef(sequelize),
-  OrderStatus: OrderStatusDef(sequelize),
   Product: ProductDef(sequelize),
   ProductVarient: ProductVarientDef(sequelize),
   Review: ReviewDef(sequelize),

@@ -1,5 +1,6 @@
-// Settings Model for site configuration
-const { DataTypes, Model } = require('sequelize');
+// Settings Model for site configuration - ES Module
+import { DataTypes, Model } from 'sequelize';
+
 const Setting = (sequelize) => {
   class Setting extends Model {}
 
@@ -41,4 +42,4 @@ const Setting = (sequelize) => {
   return Setting;
 };
 
-module.exports = Setting;
+export default Setting;

@@ -1,5 +1,5 @@
 // Product Model
-const { DataTypes, Model } = require('sequelize');
+import { DataTypes, Model } from ('sequelize');
 const Product = (sequelize) => {
   class Product extends Model {
     static associate(models) {
@@ -27,6 +27,32 @@ const Product = (sequelize) => {
         len: { args: [2, 200], msg: 'Product name must be between 2-200 characters' }
       }
     },
+
+        images: {
+          type: DataTypes.JSON,
+                allowNull: true,
+                validate: {
+                  isValidImage(value) {
+                    if (!value) return; // allow null
+        
+                    const { url, height, width, blurhash } = value;
+        
+                    if (typeof url !== "string" || !/^https?:\/\/.+/.test(url)) {
+                      throw new Error("Image URL must be a valid URL");
+                    }
+        
+                    if (typeof height !== "number" || typeof width !== "number") {
+                      throw new Error("Image height and width must be numbers");
+                    }
+        
+                    if (typeof blurhash !== "string") {
+                      throw new Error("Image blurhash must be a string");
+                    }
+                  },
+                },
+              },
+
+
     slug: {
       type: DataTypes.STRING(250),
       allowNull: false,
@@ -95,21 +121,7 @@ const Product = (sequelize) => {
         min: { args: 0, msg: 'Low stock threshold cannot be negative' }
       }
     },
-    trackQuantity: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: true
-    },
-    allowBackorder: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: false
-    },
-    weight: {
-      type: DataTypes.DECIMAL(8, 2),
-      validate: {
-        min: { args: 0, msg: 'Weight cannot be negative' }
-      }
-    },
-    dimensions: DataTypes.JSONB, // {length, width, height}
+
     isActive: {
       type: DataTypes.BOOLEAN,
       defaultValue: true
@@ -129,28 +141,7 @@ const Product = (sequelize) => {
         len: { args: [0, 500], msg: 'Meta description cannot exceed 500 characters' }
       }
     },
-    averageRating: {
-      type: DataTypes.DECIMAL(3, 2),
-      defaultValue: 0,
-      validate: {
-        min: { args: 0, msg: 'Rating cannot be negative' },
-        max: { args: 5, msg: 'Rating cannot exceed 5' }
-      }
-    },
-    reviewCount: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0,
-      validate: {
-        min: { args: 0, msg: 'Review count cannot be negative' }
-      }
-    },
-    viewCount: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0,
-      validate: {
-        min: { args: 0, msg: 'View count cannot be negative' }
-      }
-    }
+
   }, {
     sequelize,
     modelName: 'Product',
@@ -165,11 +156,10 @@ const Product = (sequelize) => {
       { fields: ['isFeatured'] },
       { fields: ['price'] },
       { fields: ['stockQuantity'] },
-      { fields: ['averageRating'] },
       { fields: ['tags'], using: 'gin' }
     ]
   });
 
   return Product;
 };
-module.exports = Product;
+export default Product;

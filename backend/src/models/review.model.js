@@ -1,5 +1,5 @@
-// Review Model
-const { DataTypes, Model } = require('sequelize');
+
+import { DataTypes, Model } from 'sequelize';
 const Review = (sequelize) => {
   class Review extends Model {
     static associate(models) {
@@ -37,31 +37,10 @@ const Review = (sequelize) => {
         max: { args: 5, msg: 'Rating cannot exceed 5' }
       }
     },
-    title: {
-      type: DataTypes.STRING(200),
-      validate: {
-        len: { args: [0, 200], msg: 'Review title cannot exceed 200 characters' }
-      }
-    },
     comment: {
       type: DataTypes.TEXT,
       validate: {
         len: { args: [0, 2000], msg: 'Review comment cannot exceed 2000 characters' }
-      }
-    },
-    isVerifiedPurchase: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: false
-    },
-    isApproved: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: false
-    },
-    helpfulCount: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0,
-      validate: {
-        min: { args: 0, msg: 'Helpful count cannot be negative' }
       }
     }
   }, {
@@ -83,4 +62,4 @@ const Review = (sequelize) => {
   return Review;
 };
 
-module.exports = Review;
+export default Review;

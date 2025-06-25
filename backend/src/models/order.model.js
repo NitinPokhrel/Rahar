@@ -1,5 +1,5 @@
 // Order Model
-const { DataTypes, Model } = require('sequelize');
+import { DataTypes, Model } from ('sequelize');
 const Order = (sequelize) => {
   class Order extends Model {
     static associate(models) {
@@ -8,7 +8,6 @@ const Order = (sequelize) => {
       Order.belongsTo(models.Address, { foreignKey: 'billingAddressId', as: 'billingAddress' });
       Order.belongsTo(models.Coupon, { foreignKey: 'couponId', as: 'coupon' });
       Order.hasMany(models.OrderItem, { foreignKey: 'orderId', as: 'items' });
-      Order.hasMany(models.OrderStatusHistory, { foreignKey: 'orderId', as: 'statusHistory' });
     }
   }
 
@@ -122,4 +121,4 @@ const Order = (sequelize) => {
 
   return Order;
 };
-module.exports = Order;
+export default Order;

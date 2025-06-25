@@ -1,5 +1,5 @@
 // Newsletter Subscription Model
-const { DataTypes, Model } = require('sequelize');
+import { DataTypes, Model } from ('sequelize');
 const NewsletterSubscription = (sequelize) => {
   class NewsletterSubscription extends Model {}
 
@@ -47,4 +47,5 @@ const NewsletterSubscription = (sequelize) => {
 
   return NewsletterSubscription;
 };
-module.exports = NewsletterSubscription;
+
+export default NewsletterSubscription;

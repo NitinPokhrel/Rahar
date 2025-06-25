@@ -1,5 +1,5 @@
 // Product Variant Model
-const { DataTypes, Model } = require('sequelize');
+import { DataTypes, Model } from ('sequelize');
 
 const ProductVariant = (sequelize) => {
   class ProductVariant extends Model {
@@ -54,27 +54,42 @@ const ProductVariant = (sequelize) => {
         min: { args: 0, msg: 'Stock quantity cannot be negative' }
       }
     },
-    attributes: DataTypes.JSONB, // {size: 'L', color: 'Red', material: 'Cotton'}
-    weight: {
-      type: DataTypes.DECIMAL(8, 2),
-      validate: {
-        min: { args: 0, msg: 'Weight cannot be negative' }
-      }
-    },
-    image: {
-      type: DataTypes.TEXT,
-      validate: {
-        isUrl: { msg: 'Image must be a valid URL' }
-      }
-    },
+    attributes: DataTypes.JSONB, 
+
+    images: {
+      type: DataTypes.JSON,
+            allowNull: true,
+            validate: {
+              isValidImage(value) {
+                if (!value) return; // allow null
+    
+                const { url, height, width, blurhash } = value;
+    
+                if (typeof url !== "string" || !/^https?:\/\/.+/.test(url)) {
+                  throw new Error("Image URL must be a valid URL");
+                }
+    
+                if (typeof height !== "number" || typeof width !== "number") {
+                  throw new Error("Image height and width must be numbers");
+                }
+    
+                if (typeof blurhash !== "string") {
+                  throw new Error("Image blurhash must be a string");
+                }
+              },
+            },
+          },
     isActive: {
       type: DataTypes.BOOLEAN,
       defaultValue: true
     },
-    sortOrder: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0
-    }
+        description: {
+          type: DataTypes.TEXT,
+          validate: {
+            len: { args: [0, 500], msg: 'Description cannot exceed 500 characters' }
+          }
+        },
+
   }, {
     sequelize,
     modelName: 'ProductVariant',
@@ -91,4 +106,4 @@ const ProductVariant = (sequelize) => {
   return ProductVariant;
 };
 
-module.exports = ProductVariant;
+export default ProductVariant;

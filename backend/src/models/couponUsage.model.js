@@ -1,5 +1,5 @@
 // Coupon Usage Model
-const { DataTypes, Model } = require('sequelize');
+import { DataTypes, Model } from ('sequelize');
 const CouponUsage = (sequelize) => {
   class CouponUsage extends Model {
     static associate(models) {
@@ -53,4 +53,4 @@ const CouponUsage = (sequelize) => {
   return CouponUsage;
 };
 
-module.exports = CouponUsage;
+export default CouponUsage;
