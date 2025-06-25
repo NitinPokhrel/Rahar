@@ -20,10 +20,11 @@ app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-app.use(clerkMiddleware)
+app.use(clerkMiddleware())
 
 // User routes
 app.use('/api/v1/users', userRouter);
+
 
 
 app.get("/",(req,res)=>{
