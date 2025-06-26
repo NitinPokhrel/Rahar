@@ -1,54 +1,55 @@
-// Coupon Usage Model
-import { DataTypes, Model } from ('sequelize');
+// models/CouponUsage.js
+// coupons and track their usage by users 
+// whether  a coupon has been used by a user for a specific product and when it was used
+// This helps prevent multiple uses of the same coupon by the same user for the same product
+import { DataTypes, Model } from "sequelize";
+
 const CouponUsage = (sequelize) => {
   class CouponUsage extends Model {
     static associate(models) {
-      CouponUsage.belongsTo(models.Coupon, { foreignKey: 'couponId', as: 'coupon' });
-      CouponUsage.belongsTo(models.User, { foreignKey: 'userId', as: 'user' });
-      CouponUsage.belongsTo(models.Order, { foreignKey: 'orderId', as: 'order' });
+      CouponUsage.belongsTo(models.User, { foreignKey: "userId", as: "user" });
+      CouponUsage.belongsTo(models.Coupon, { foreignKey: "couponId", as: "coupon" });
+      CouponUsage.belongsTo(models.Product, { foreignKey: "productId", as: "product" });
     }
   }
 
-  CouponUsage.init({
-    id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
-      primaryKey: true
+  CouponUsage.init(
+    {
+      id: {
+        type: DataTypes.UUID,
+        defaultValue: DataTypes.UUIDV4,
+        primaryKey: true,
+      },
+      userId: {
+        type: DataTypes.UUID,
+        allowNull: false,
+      },
+      couponId: {
+        type: DataTypes.UUID,
+        allowNull: false,
+      },
+      productId: {
+        type: DataTypes.UUID,
+        allowNull: false,
+      },
+      usedAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+      },
     },
-    couponId: {
-      type: DataTypes.UUID,
-      allowNull: false,
-      references: { model: 'coupons', key: 'id' }
-    },
-    userId: {
-      type: DataTypes.UUID,
-      allowNull: false,
-      references: { model: 'users', key: 'id' }
-    },
-    orderId: {
-      type: DataTypes.UUID,
-      allowNull: false,
-      references: { model: 'orders', key: 'id' }
-    },
-    discountAmount: {
-      type: DataTypes.DECIMAL(10, 2),
-      allowNull: false,
-      validate: {
-        min: { args: 0, msg: 'Discount amount cannot be negative' }
-      }
+    {
+      sequelize,
+      modelName: "CouponUsage",
+      tableName: "coupon_usages",
+      timestamps: false,
+      indexes: [
+        {
+          unique: true,
+          fields: ["userId", "couponId", "productId"], // ✅ unique per user+coupon+product
+        },
+      ],
     }
-  }, {
-    sequelize,
-    modelName: 'CouponUsage',
-    tableName: 'coupon_usages',
-    timestamps: true,
-    indexes: [
-      { fields: ['couponId'] },
-      { fields: ['userId'] },
-      { fields: ['orderId'] },
-      { unique: true, fields: ['couponId', 'orderId'] }
-    ]
-  });
+  );
 
   return CouponUsage;
 };

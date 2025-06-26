@@ -1,20 +1,20 @@
-const Sequelize = require('sequelize');
-const { sequelize } = require('../db/db');
-const UserDef = require('./user.model');
-const CartDef = require('./cart.model');
-const CategoryDef = require('./category.model');
-const CouponDef = require('./coupon.model');
-const CouponUsageDef = require('./couponUsage.model');
-const NewsletterSubscriptionDef = require('./newsLetterSubscription.model');
-const OrderDef = require('./order.model');
-const OrderItemDef = require('./orderItem.model');
-const ProductDef = require('./product.model');
-const ProductVarientDef = require('./productVarient.model');
-const ReviewDef = require('./review.model');
-const SettingDef = require('./setting.model');
-const WishlistDef = require('./wishlist.model');
+import Sequelize from 'sequelize';
+import { sequelize } from '../db/db.js';
 
-// Initialize each model with the sequelize instance
+import UserDef from './user.model.js';
+import CartDef from './cart.model.js';
+import CategoryDef from './category.model.js';
+import CouponDef from './coupon.model.js';
+import CouponUsageDef from './couponUsage.model.js';
+import NewsletterSubscriptionDef from './newsLetterSubscription.model.js';
+import OrderDef from './order.model.js';
+import OrderItemDef from './orderItem.model.js';
+import ProductDef from './product.model.js';
+import ProductVarientDef from './productVarient.model.js';
+import ReviewDef from './review.model.js';
+import SettingDef from './setting.model.js';
+import WishlistDef from './wishlist.model.js';
+
 const models = {
   User: UserDef(sequelize),
   Cart: CartDef(sequelize),
@@ -31,16 +31,44 @@ const models = {
   Wishlist: WishlistDef(sequelize),
 };
 
-// Run associations (if any)
+// Initialize associations
 Object.values(models).forEach((model) => {
   if (typeof model.associate === 'function') {
     model.associate(models);
   }
 });
 
-// Export everything
-module.exports = {
+// Destructure models for named export
+const {
+  User,
+  Cart,
+  Category,
+  Coupon,
+  CouponUsage,
+  NewsletterSubscription,
+  Order,
+  OrderItem,
+  Product,
+  ProductVarient,
+  Review,
+  Setting,
+  Wishlist,
+} = models;
+
+export {
   sequelize,
   Sequelize,
-  ...models,
+  User,
+  Cart,
+  Category,
+  Coupon,
+  CouponUsage,
+  NewsletterSubscription,
+  Order,
+  OrderItem,
+  Product,
+  ProductVarient,
+  Review,
+  Setting,
+  Wishlist,
 };
