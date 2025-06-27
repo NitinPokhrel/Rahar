@@ -2,10 +2,6 @@
 import { Router } from "express";
 import { clerkClient, requireAuth, getAuth } from "@clerk/express";
 
-// import { loginUser, logoutUser, refreshAccessToken, registerUser } from "../controllers/user.controller.js";
-// import { verifyJWT } from "../middlewares/auth.middleware.js";
-
-
 const router = Router();
 
 router.get("/", (req, res) => {

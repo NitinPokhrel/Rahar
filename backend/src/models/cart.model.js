@@ -1,5 +1,5 @@
 // Cart Model
-import { DataTypes, Model } from ("sequelize");
+import { DataTypes, Model } from "sequelize";
 const Cart = (sequelize) => {
   class Cart extends Model {
     static associate(models) {
