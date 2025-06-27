@@ -1,21 +1,8 @@
-<<<<<<< HEAD
-// models/Coupon.js
-import { DataTypes, Model } from "sequelize";
-
-=======
 // Coupon Model
 const { DataTypes, Model } = require("sequelize");
->>>>>>> d9777c165a65d6c2978e53f2855a2b14d5776c84
 const Coupon = (sequelize) => {
    class Coupon extends Model {
     static associate(models) {
-<<<<<<< HEAD
-      Coupon.hasMany(models.CouponUsage, {
-        foreignKey: "couponId",
-        as: "usages", // alias to access coupon usages
-        onDelete: "CASCADE",
-      });
-=======
       Coupon.hasMany(models.Order, { foreignKey: "couponId", as: "orders" });
       Coupon.hasMany(models.CouponUsage, {
         foreignKey: "couponId",
@@ -62,7 +49,6 @@ const Coupon = (sequelize) => {
       } else {
         return Math.min(this.value, orderTotal);
       }
->>>>>>> d9777c165a65d6c2978e53f2855a2b14d5776c84
     }
   }
 
@@ -74,30 +60,6 @@ const Coupon = (sequelize) => {
         primaryKey: true,
       },
       code: {
-<<<<<<< HEAD
-        type: DataTypes.STRING,
-        allowNull: false,
-        unique: true,
-      },
-     
-      discountType: {
-        type: DataTypes.ENUM("percentage", "fixed"),
-        allowNull: false,
-      },
-      discountAmount: {
-        type: DataTypes.FLOAT,
-        allowNull: false,
-      },
-      minOrderAmount: { //minimum number of order amount to apply the coupon
-        type: DataTypes.FLOAT,
-        defaultValue: 0,
-      },
-      maxDiscount: {
-        type: DataTypes.FLOAT, //  maximum discount amount that can be applied
-      },
-      usageLimit: {
-        type: DataTypes.INTEGER, // total times the coupon can be used
-=======
         type: DataTypes.STRING(50),
         allowNull: false,
         unique: { msg: "Coupon code must be unique" },
@@ -160,17 +122,10 @@ const Coupon = (sequelize) => {
         validate: {
           min: { args: 1, msg: "Usage limit per user must be at least 1" },
         },
->>>>>>> d9777c165a65d6c2978e53f2855a2b14d5776c84
       },
       usedCount: {
         type: DataTypes.INTEGER,
         defaultValue: 0,
-<<<<<<< HEAD
-      },
-      expiresAt: {
-        type: DataTypes.DATE,
-        allowNull: true,
-=======
         validate: {
           min: { args: 0, msg: "Used count cannot be negative" },
         },
@@ -185,14 +140,11 @@ const Coupon = (sequelize) => {
             }
           },
         },
->>>>>>> d9777c165a65d6c2978e53f2855a2b14d5776c84
       },
       isActive: {
         type: DataTypes.BOOLEAN,
         defaultValue: true,
       },
-<<<<<<< HEAD
-=======
       applicableCategories: {
         type: DataTypes.ARRAY(DataTypes.UUID),
         defaultValue: [],
@@ -201,15 +153,12 @@ const Coupon = (sequelize) => {
         type: DataTypes.ARRAY(DataTypes.UUID),
         defaultValue: [],
       },
->>>>>>> d9777c165a65d6c2978e53f2855a2b14d5776c84
     },
     {
       sequelize,
       modelName: "Coupon",
       tableName: "coupons",
       timestamps: true,
-<<<<<<< HEAD
-=======
       paranoid: true,
       indexes: [
         { fields: ["code"] },
@@ -220,15 +169,10 @@ const Coupon = (sequelize) => {
         { fields: ["applicableCategories"], using: "gin" },
         { fields: ["applicableProducts"], using: "gin" },
       ],
->>>>>>> d9777c165a65d6c2978e53f2855a2b14d5776c84
     }
   );
 
   return Coupon;
 };
 
-<<<<<<< HEAD
-export default Coupon;
-=======
 module.exports = Coupon;
->>>>>>> d9777c165a65d6c2978e53f2855a2b14d5776c84
