@@ -1,5 +1,5 @@
 // Cart Model
-const { DataTypes, Model } = require("sequelize");
+import { DataTypes, Model } from ("sequelize");
 const Cart = (sequelize) => {
   class Cart extends Model {
     static associate(models) {
@@ -69,4 +69,4 @@ const Cart = (sequelize) => {
   return Cart;
 };
 
-module.exports = Cart;
+export default Cart;
