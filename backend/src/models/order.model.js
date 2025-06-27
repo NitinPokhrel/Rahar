@@ -1,15 +1,9 @@
-<<<<<<< HEAD
-// models/Order.js
-=======
->>>>>>> d9777c165a65d6c2978e53f2855a2b14d5776c84
 import { DataTypes, Model } from "sequelize";
 
 const Order = (sequelize) => {
    class Order extends Model {
     static associate(models) {
       Order.belongsTo(models.User, { foreignKey: "userId", as: "user" });
-<<<<<<< HEAD
-=======
       Order.belongsTo(models.Address, {
         foreignKey: "shippingAddressId",
         as: "shippingAddress",
@@ -18,7 +12,6 @@ const Order = (sequelize) => {
         foreignKey: "billingAddressId",
         as: "billingAddress",
       });
->>>>>>> d9777c165a65d6c2978e53f2855a2b14d5776c84
       Order.belongsTo(models.Coupon, { foreignKey: "couponId", as: "coupon" });
       Order.hasMany(models.OrderItem, { foreignKey: "orderId", as: "items" });
     }
@@ -31,55 +24,6 @@ const Order = (sequelize) => {
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
       },
-<<<<<<< HEAD
-
-      userId: {
-        type: DataTypes.UUID,
-        allowNull: false,
-      },
-
-      status: {
-        type: DataTypes.ENUM(
-          "pending",        // just placed
-          "confirmed",      // confirmed by system or admin
-          "shipped",        // out for delivery
-          "delivered",      // delivered successfully
-          "cancelled",      // user cancelled
-          "returned"        // product returned
-        ),
-        defaultValue: "pending",
-      },
-
-      totalAmount: {
-        type: DataTypes.FLOAT,
-        allowNull: false,
-      },
-
-      discountAmount: {
-        type: DataTypes.FLOAT,
-        defaultValue: 0,
-      },
-
-      paymentMethod: {
-        type: DataTypes.ENUM("cod", "esewa", "khalti", "card"),
-        allowNull: false,
-      },
-
-      paymentStatus: {
-        type: DataTypes.ENUM("pending", "paid", "failed"),
-        defaultValue: "pending",
-      },
-
-      shippingAddress: {
-        type: DataTypes.JSONB, // or store `addressId` if you use separate Address table
-        allowNull: false,
-      },
-
-      couponId: {
-        type: DataTypes.UUID, // FK to Coupon table
-        allowNull: true,
-      },
-=======
       orderNumber: {
         type: DataTypes.STRING(50),
         allowNull: false,
@@ -157,15 +101,12 @@ const Order = (sequelize) => {
       cancelledAt: DataTypes.DATE,
 
       cancellationReason: DataTypes.TEXT,
->>>>>>> d9777c165a65d6c2978e53f2855a2b14d5776c84
     },
     {
       sequelize,
       modelName: "Order",
       tableName: "orders",
       timestamps: true,
-<<<<<<< HEAD
-=======
       indexes: [
         { fields: ["orderNumber"] },
         { fields: ["userId"] },
@@ -188,7 +129,6 @@ const Order = (sequelize) => {
           order.orderNumber = `ORD-${datePart}-${randomSuffix}`;
         },
       },
->>>>>>> d9777c165a65d6c2978e53f2855a2b14d5776c84
     }
   );
 
