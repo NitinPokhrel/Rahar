@@ -53,8 +53,8 @@ const Review = (sequelize) => {
       { fields: ['productId'] },
       { fields: ['orderId'] },
       { fields: ['rating'] },
-      { fields: ['isApproved'] },
-      { fields: ['isVerifiedPurchase'] },
+      // { fields: ['isApproved'] },
+      // { fields: ['isVerifiedPurchase'] },
       { unique: true, fields: ['userId', 'productId', 'orderId'] }
     ]
   });

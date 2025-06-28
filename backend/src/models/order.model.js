@@ -81,7 +81,7 @@ const Order = (sequelize) => {
       shippingAddressId: {
         type: DataTypes.UUID,
         allowNull: false,
-        references: { model: "addresses", key: "id" },
+        // references: { model: "addresses", key: "id" },
       },
       notes: DataTypes.TEXT,
 
