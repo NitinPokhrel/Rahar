@@ -127,6 +127,59 @@ const User = (sequelize) => {
         defaultValue: false,
       },
 
+      address: {
+        type: DataTypes.JSON,
+        allowNull: false,
+        validate: {
+          isValidAddress(value) {
+            if (
+              !value ||
+              typeof value !== "object" ||
+              !value.province ||
+              !value.city ||
+              !value.fullAddress
+            ) {
+              throw new Error(
+                "Address must include province, city, and fullAddress"
+              );
+            }
+
+            if (
+              typeof value.province !== "string" ||
+              value.province.trim().length < 2
+            ) {
+              throw new Error(
+                "Province must be a valid string with at least 2 characters"
+              );
+            }
+
+            if (
+              typeof value.city !== "string" ||
+              value.city.trim().length < 2
+            ) {
+              throw new Error(
+                "City must be a valid string with at least 2 characters"
+              );
+            }
+
+            if (
+              typeof value.fullAddress !== "string" ||
+              value.fullAddress.trim().length < 5 ||
+              value.fullAddress.trim().length > 255
+            ) {
+              throw new Error(
+                "Full address must be between 5 and 255 characters"
+              );
+            }
+
+            const validChars = /^[a-zA-Z0-9\s,.\-()#:/]+$/;
+            if (!validChars.test(value.fullAddress)) {
+              throw new Error("Full address contains invalid characters");
+            }
+          },
+        },
+      },
+
       // Profile Picture url
 
       avatar: {

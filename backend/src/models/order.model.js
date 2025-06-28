@@ -78,11 +78,68 @@ const Order = (sequelize) => {
         type: DataTypes.UUID,
         references: { model: "coupons", key: "id" },
       },
-      shippingAddressId: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        // references: { model: "addresses", key: "id" },
+      phone: {
+        type: DataTypes.STRING(20),
+        validate: {
+          is: {
+            args: /^[\+]?[1-9][\d]{0,15}$/,
+            msg: "Invalid phone number format",
+          },
+        },
       },
+      address: {
+        type: DataTypes.JSON,
+        allowNull: false,
+        validate: {
+          isValidAddress(value) {
+            if (
+              !value ||
+              typeof value !== "object" ||
+              !value.province ||
+              !value.city ||
+              !value.fullAddress
+            ) {
+              throw new Error(
+                "Address must include province, city, and fullAddress"
+              );
+            }
+
+            if (
+              typeof value.province !== "string" ||
+              value.province.trim().length < 2
+            ) {
+              throw new Error(
+                "Province must be a valid string with at least 2 characters"
+              );
+            }
+
+            if (
+              typeof value.city !== "string" ||
+              value.city.trim().length < 2
+            ) {
+              throw new Error(
+                "City must be a valid string with at least 2 characters"
+              );
+            }
+
+            if (
+              typeof value.fullAddress !== "string" ||
+              value.fullAddress.trim().length < 5 ||
+              value.fullAddress.trim().length > 255
+            ) {
+              throw new Error(
+                "Full address must be between 5 and 255 characters"
+              );
+            }
+
+            const validChars = /^[a-zA-Z0-9\s,.\-()#:/]+$/;
+            if (!validChars.test(value.fullAddress)) {
+              throw new Error("Full address contains invalid characters");
+            }
+          },
+        },
+      },
+
       notes: DataTypes.TEXT,
 
       createdAt: {
