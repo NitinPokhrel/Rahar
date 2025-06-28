@@ -24,6 +24,14 @@ app.use(express.json());
 
 app.use(clerkMiddleware());
 
+app.get("/", (req, res) => {
+  res.status(200).json({
+    status: "success",
+    message: "Welcome to the Admin API",
+  });
+});
+
+
 // User routes
 app.use("/api/v1/admin", adminRouter);
 
