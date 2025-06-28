@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { Cart, Product, ProductVariant } from "../models/index.model.js";
-import { Op } from "sequelize";
+
 
 const router = Router();
 

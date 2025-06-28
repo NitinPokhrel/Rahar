@@ -1,5 +1,5 @@
 // Newsletter Subscription Model
-import { DataTypes, Model } from ('sequelize');
+import { DataTypes, Model } from "sequelize";
 const NewsletterSubscription = (sequelize) => {
   class NewsletterSubscription extends Model {}
 

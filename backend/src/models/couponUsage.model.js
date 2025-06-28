@@ -1,5 +1,5 @@
 // Coupon Usage Model
-import { DataTypes, Model } from ('sequelize');
+import { DataTypes, Model } from "sequelize";
 const CouponUsage = (sequelize) => {
   class CouponUsage extends Model {
     static associate(models) {

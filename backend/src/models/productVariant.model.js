@@ -1,5 +1,5 @@
 // Product Variant Model
-import { DataTypes, Model } from ('sequelize');
+import { DataTypes, Model } from 'sequelize';
 
 const ProductVariant = (sequelize) => {
   class ProductVariant extends Model {

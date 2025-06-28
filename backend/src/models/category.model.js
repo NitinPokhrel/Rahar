@@ -1,5 +1,5 @@
 // Category Model
-const { DataTypes, Model } = require("sequelize");
+import { DataTypes, Model } from "sequelize";
 const Category = (sequelize) => {
   class Category extends Model {
     static associate(models) {
@@ -94,4 +94,4 @@ const Category = (sequelize) => {
   return Category;
 };
 
-module.exports = Category;
+export default Category;

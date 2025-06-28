@@ -1,5 +1,5 @@
 // Order Item Model
-import { DataTypes, Model } from ("sequelize");
+import { DataTypes, Model } from "sequelize";
 const OrderItem = (sequelize) => {
   class OrderItem extends Model {
     static associate(models) {

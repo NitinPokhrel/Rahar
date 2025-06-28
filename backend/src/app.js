@@ -27,21 +27,6 @@ app.use(clerkMiddleware());
 // User routes
 app.use("/api/v1/admin", adminRouter);
 
-app.get("/", (req, res) => {
-  return res.status(200).json({
-    message: "Welcome to the API",
-    status: "success",
-  });
-});
-
-app.get("*", (req, res) => {
-  return res.status(404).json({
-    success: false,
-    status: "Not Found",
-    message: "The requested resource was not found.",
-  });
-});
-
 app.listen(PORT, () => {
   console.log(`✅ Server is running on port ${PORT}`);
 });
