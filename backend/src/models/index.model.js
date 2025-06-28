@@ -1,6 +1,11 @@
+<<<<<<< HEAD
 import Sequelize from 'sequelize';
 import { sequelize } from '../db/db.js';
 
+=======
+import SequelizePkg from 'sequelize';
+import sequelize from '../db/db.js';
+>>>>>>> 23790b7426e2d0463da91e28203752d7b88a8494
 import UserDef from './user.model.js';
 import CartDef from './cart.model.js';
 import CategoryDef from './category.model.js';
@@ -10,10 +15,19 @@ import NewsletterSubscriptionDef from './newsLetterSubscription.model.js';
 import OrderDef from './order.model.js';
 import OrderItemDef from './orderItem.model.js';
 import ProductDef from './product.model.js';
+<<<<<<< HEAD
 import ProductVarientDef from './productVarient.model.js';
 import ReviewDef from './review.model.js';
 import SettingDef from './setting.model.js';
 import WishlistDef from './wishlist.model.js';
+=======
+import ProductVariantDef from './productVariant.model.js';
+import ReviewDef from './review.model.js';
+import SettingDef from './setting.model.js';
+import WishlistDef from './wishlist.model.js';
+
+const { Sequelize } = SequelizePkg;
+>>>>>>> 23790b7426e2d0463da91e28203752d7b88a8494
 
 const models = {
   User: UserDef(sequelize),
@@ -25,7 +39,7 @@ const models = {
   Order: OrderDef(sequelize),
   OrderItem: OrderItemDef(sequelize),
   Product: ProductDef(sequelize),
-  ProductVarient: ProductVarientDef(sequelize),
+  ProductVariant: ProductVariantDef(sequelize),
   Review: ReviewDef(sequelize),
   Setting: SettingDef(sequelize),
   Wishlist: WishlistDef(sequelize),
@@ -38,7 +52,11 @@ Object.values(models).forEach((model) => {
   }
 });
 
+<<<<<<< HEAD
 // Destructure models for named export
+=======
+// Extract individual models for named exports
+>>>>>>> 23790b7426e2d0463da91e28203752d7b88a8494
 const {
   User,
   Cart,
@@ -49,12 +67,17 @@ const {
   Order,
   OrderItem,
   Product,
+<<<<<<< HEAD
   ProductVarient,
+=======
+  ProductVariant,
+>>>>>>> 23790b7426e2d0463da91e28203752d7b88a8494
   Review,
   Setting,
   Wishlist,
 } = models;
 
+<<<<<<< HEAD
 export {
   sequelize,
   Sequelize,
@@ -72,3 +95,32 @@ export {
   Setting,
   Wishlist,
 };
+=======
+// Export individual models as named exports
+export {
+  sequelize,
+  Sequelize,
+  models,
+  // Individual model exports
+  User,
+  Cart,
+  Category,
+  Coupon,
+  CouponUsage,
+  NewsletterSubscription,
+  Order,
+  OrderItem,
+  Product,
+  ProductVariant,
+  Review,
+  Setting,
+  Wishlist,
+};
+
+// Default export
+export default {
+  sequelize,
+  Sequelize,
+  ...models,
+};
+>>>>>>> 23790b7426e2d0463da91e28203752d7b88a8494

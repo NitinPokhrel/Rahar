@@ -1,11 +1,10 @@
 // Product Model
-import { DataTypes, Model } from ('sequelize');
+import { DataTypes, Model } from "sequelize";
 const Product = (sequelize) => {
   class Product extends Model {
     static associate(models) {
       Product.belongsTo(models.Category, { foreignKey: 'categoryId', as: 'category' });
       Product.hasMany(models.ProductVariant, { foreignKey: 'productId', as: 'variants' });
-      Product.hasMany(models.ProductImage, { foreignKey: 'productId', as: 'images' });
       Product.hasMany(models.Review, { foreignKey: 'productId', as: 'reviews' });
       Product.hasMany(models.Cart, { foreignKey: 'productId', as: 'cartItems' });
       Product.hasMany(models.OrderItem, { foreignKey: 'productId', as: 'orderItems' });

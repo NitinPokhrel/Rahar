@@ -4,14 +4,7 @@ const Order = (sequelize) => {
    class Order extends Model {
     static associate(models) {
       Order.belongsTo(models.User, { foreignKey: "userId", as: "user" });
-      Order.belongsTo(models.Address, {
-        foreignKey: "shippingAddressId",
-        as: "shippingAddress",
-      });
-      Order.belongsTo(models.Address, {
-        foreignKey: "billingAddressId",
-        as: "billingAddress",
-      });
+
       Order.belongsTo(models.Coupon, { foreignKey: "couponId", as: "coupon" });
       Order.hasMany(models.OrderItem, { foreignKey: "orderId", as: "items" });
     }
@@ -88,7 +81,7 @@ const Order = (sequelize) => {
       shippingAddressId: {
         type: DataTypes.UUID,
         allowNull: false,
-        references: { model: "addresses", key: "id" },
+        // references: { model: "addresses", key: "id" },
       },
       notes: DataTypes.TEXT,
 

@@ -1,9 +1,5 @@
-// models/CouponUsage.js
-// coupons and track their usage by users 
-// whether  a coupon has been used by a user for a specific product and when it was used
-// This helps prevent multiple uses of the same coupon by the same user for the same product
+// Coupon Usage Model
 import { DataTypes, Model } from "sequelize";
-
 const CouponUsage = (sequelize) => {
   class CouponUsage extends Model {
     static associate(models) {

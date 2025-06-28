@@ -64,6 +64,14 @@ const Category = (sequelize) => {
           isUrl: { msg: "Image must be a valid URL" },
         },
       },
+      isActive: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+      },
+      sortOrder: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+      },
 
       metaTitle: DataTypes.STRING(200),
       metaDescription: {
@@ -85,8 +93,8 @@ const Category = (sequelize) => {
       indexes: [
         { fields: ["slug"] },
         { fields: ["parentId"] },
-        { fields: ["isActive"] },
-        { fields: ["sortOrder"] },
+        // { fields: ["isActive"] },
+        // { fields: ["sortOrder"] },
       ],
     }
   );
@@ -94,4 +102,4 @@ const Category = (sequelize) => {
   return Category;
 };
 
-export default Category;
+module.exports = Category;
