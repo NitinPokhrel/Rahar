@@ -102,4 +102,4 @@ const Category = (sequelize) => {
   return Category;
 };
 
-export default Category;
+module.exports = Category;

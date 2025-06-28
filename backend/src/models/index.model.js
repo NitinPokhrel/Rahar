@@ -16,7 +16,6 @@ import WishlistDef from './wishlist.model.js';
 
 const { Sequelize } = SequelizePkg;
 
-// Initialize each model with the sequelize instance
 const models = {
   User: UserDef(sequelize),
   Cart: CartDef(sequelize),
@@ -33,7 +32,7 @@ const models = {
   Wishlist: WishlistDef(sequelize),
 };
 
-// Run associations (if any)
+// Initialize associations
 Object.values(models).forEach((model) => {
   if (typeof model.associate === 'function') {
     model.associate(models);
