@@ -37,7 +37,7 @@ app.use(express.json());
 
 app.use(clerkMiddleware());
 
-app.get("/", (req, res) => {
+app.get("/test", (req, res) => {
   res.status(200).json({
     status: "success",
     message: "Welcome to the Admin API",
