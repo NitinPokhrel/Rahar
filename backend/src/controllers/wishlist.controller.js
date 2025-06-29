@@ -1,23 +1,21 @@
-import { Router } from "express";
-import { Wishlist, Product, Category } from "../models/index.model.js";
-
-const router = Router();
+import { Wishlist, Product, Category, Cart } from "../models/index.model.js";
+import { Op } from "sequelize";
 
 // Get user's wishlist
-router.get("/", async (req, res) => {
+export const getWishlist = async (req, res) => {
   try {
     const userId = req.user.id;
     const { page = 1, limit = 12 } = req.query;
     const offset = (page - 1) * limit;
 
-    const { count, rows: wishlistItems } = await Wishlist.findAndCountAll({
+    const { count, rows } = await Wishlist.findAndCountAll({
       where: { userId },
       include: [
         {
           model: Product,
           as: "product",
           attributes: [
-            "id", "name", "slug", "images", "price", "comparePrice", 
+            "id", "name", "slug", "images", "price", "comparePrice",
             "stockQuantity", "isActive", "isFeatured"
           ],
           where: { isActive: true },
@@ -31,102 +29,60 @@ router.get("/", async (req, res) => {
           ]
         }
       ],
-      order: [["createdAt", "DESC"]],
       limit: parseInt(limit),
-      offset: parseInt(offset)
+      offset: parseInt(offset),
+      order: [["createdAt", "DESC"]]
     });
 
-    const totalPages = Math.ceil(count / limit);
-
-    res.status(200).json({
+    return res.status(200).json({
       status: "success",
       data: {
-        wishlistItems,
+        wishlistItems: rows,
         pagination: {
           currentPage: parseInt(page),
-          totalPages,
+          totalPages: Math.ceil(count / limit),
           totalItems: count,
           itemsPerPage: parseInt(limit),
-          hasNextPage: page < totalPages,
+          hasNextPage: page < Math.ceil(count / limit),
           hasPrevPage: page > 1
         }
       }
     });
-
   } catch (error) {
     console.error("Error fetching wishlist:", error);
-    res.status(500).json({ 
-      status: "error",
-      message: "Internal Server Error" 
-    });
+    res.status(500).json({ status: "error", message: "Internal Server Error" });
   }
-});
+};
 
-// Add product to wishlist
-router.post("/add", async (req, res) => {
+export const addToWishlist = async (req, res) => {
   try {
     const userId = req.user.id;
     const { productId } = req.body;
 
     if (!productId) {
-      return res.status(400).json({
-        status: "error",
-        message: "Product ID is required"
-      });
+      return res.status(400).json({ status: "error", message: "Product ID is required" });
     }
 
-    // Validate product exists and is active
-    const product = await Product.findOne({
-      where: { 
-        id: productId,
-        isActive: true 
-      }
-    });
-
+    const product = await Product.findOne({ where: { id: productId, isActive: true } });
     if (!product) {
-      return res.status(404).json({
-        status: "error",
-        message: "Product not found or inactive"
-      });
+      return res.status(404).json({ status: "error", message: "Product not found or inactive" });
     }
 
-    // Check if product is already in wishlist
-    const existingWishlistItem = await Wishlist.findOne({
-      where: {
-        userId,
-        productId
-      }
-    });
-
-    if (existingWishlistItem) {
-      return res.status(400).json({
-        status: "error",
-        message: "Product is already in your wishlist"
-      });
+    const existing = await Wishlist.findOne({ where: { userId, productId } });
+    if (existing) {
+      return res.status(400).json({ status: "error", message: "Product already in wishlist" });
     }
 
-    // Add to wishlist
-    const wishlistItem = await Wishlist.create({
-      userId,
-      productId
-    });
+    const wishlistItem = await Wishlist.create({ userId, productId });
 
-    // Fetch the complete wishlist item with product details
     const completeWishlistItem = await Wishlist.findByPk(wishlistItem.id, {
       include: [
         {
           model: Product,
           as: "product",
-          attributes: [
-            "id", "name", "slug", "images", "price", "comparePrice",
-            "stockQuantity", "isActive", "isFeatured"
-          ],
+          attributes: ["id", "name", "slug", "images", "price", "comparePrice", "stockQuantity", "isActive", "isFeatured"],
           include: [
-            {
-              model: Category,
-              as: "category",
-              attributes: ["id", "name", "slug"]
-            }
+            { model: Category, as: "category", attributes: ["id", "name", "slug"] }
           ]
         }
       ]
@@ -134,262 +90,160 @@ router.post("/add", async (req, res) => {
 
     res.status(201).json({
       status: "success",
-      message: "Product added to wishlist successfully",
+      message: "Product added to wishlist",
       data: { wishlistItem: completeWishlistItem }
     });
-
   } catch (error) {
     console.error("Error adding to wishlist:", error);
-    res.status(500).json({ 
-      status: "error",
-      message: "Internal Server Error" 
-    });
+    res.status(500).json({ status: "error", message: "Internal Server Error" });
   }
-});
+};
 
-// Remove product from wishlist
-router.delete("/:wishlistItemId", async (req, res) => {
+export const removeFromWishlist = async (req, res) => {
   try {
     const userId = req.user.id;
     const { wishlistItemId } = req.params;
 
-    const wishlistItem = await Wishlist.findOne({
-      where: { 
-        id: wishlistItemId,
-        userId 
-      }
-    });
-
-    if (!wishlistItem) {
-      return res.status(404).json({
-        status: "error",
-        message: "Wishlist item not found"
-      });
+    const item = await Wishlist.findOne({ where: { id: wishlistItemId, userId } });
+    if (!item) {
+      return res.status(404).json({ status: "error", message: "Wishlist item not found" });
     }
 
-    await wishlistItem.destroy();
-
-    res.status(200).json({
-      status: "success",
-      message: "Product removed from wishlist successfully"
-    });
-
+    await item.destroy();
+    res.status(200).json({ status: "success", message: "Removed from wishlist" });
   } catch (error) {
-    console.error("Error removing from wishlist:", error);
-    res.status(500).json({ 
-      status: "error",
-      message: "Internal Server Error" 
-    });
+    console.error("Error removing wishlist item:", error);
+    res.status(500).json({ status: "error", message: "Internal Server Error" });
   }
-});
+};
 
-// Remove product from wishlist by product ID (alternative endpoint)
-router.delete("/product/:productId", async (req, res) => {
+export const removeFromWishlistByProduct = async (req, res) => {
   try {
     const userId = req.user.id;
     const { productId } = req.params;
 
-    const wishlistItem = await Wishlist.findOne({
-      where: { 
-        productId,
-        userId 
-      }
-    });
-
-    if (!wishlistItem) {
-      return res.status(404).json({
-        status: "error",
-        message: "Product not found in wishlist"
-      });
+    const item = await Wishlist.findOne({ where: { userId, productId } });
+    if (!item) {
+      return res.status(404).json({ status: "error", message: "Product not in wishlist" });
     }
 
-    await wishlistItem.destroy();
-
-    res.status(200).json({
-      status: "success",
-      message: "Product removed from wishlist successfully"
-    });
-
+    await item.destroy();
+    res.status(200).json({ status: "success", message: "Removed from wishlist" });
   } catch (error) {
-    console.error("Error removing from wishlist:", error);
-    res.status(500).json({ 
-      status: "error",
-      message: "Internal Server Error" 
-    });
+    console.error("Error:", error);
+    res.status(500).json({ status: "error", message: "Internal Server Error" });
   }
-});
+};
 
-// Clear entire wishlist
-router.delete("/", async (req, res) => {
+export const clearWishlist = async (req, res) => {
   try {
     const userId = req.user.id;
-
-    await Wishlist.destroy({
-      where: { userId }
-    });
-
-    res.status(200).json({
-      status: "success",
-      message: "Wishlist cleared successfully"
-    });
-
+    await Wishlist.destroy({ where: { userId } });
+    res.status(200).json({ status: "success", message: "Wishlist cleared" });
   } catch (error) {
-    console.error("Error clearing wishlist:", error);
-    res.status(500).json({ 
-      status: "error",
-      message: "Internal Server Error" 
-    });
+    console.error("Error:", error);
+    res.status(500).json({ status: "error", message: "Internal Server Error" });
   }
-});
+};
 
-// Check if product is in wishlist
-router.get("/check/:productId", async (req, res) => {
+export const checkInWishlist = async (req, res) => {
   try {
     const userId = req.user.id;
     const { productId } = req.params;
 
-    const wishlistItem = await Wishlist.findOne({
-      where: {
-        userId,
-        productId
-      }
-    });
-
+    const item = await Wishlist.findOne({ where: { userId, productId } });
     res.status(200).json({
       status: "success",
       data: {
-        inWishlist: !!wishlistItem,
-        wishlistItemId: wishlistItem?.id || null
+        inWishlist: !!item,
+        wishlistItemId: item?.id || null
       }
     });
-
   } catch (error) {
-    console.error("Error checking wishlist:", error);
-    res.status(500).json({ 
-      status: "error",
-      message: "Internal Server Error" 
-    });
+    console.error("Error:", error);
+    res.status(500).json({ status: "error", message: "Internal Server Error" });
   }
-});
+};
 
-// Get wishlist count
-router.get("/count", async (req, res) => {
+export const getWishlistCount = async (req, res) => {
   try {
     const userId = req.user.id;
-
     const count = await Wishlist.count({
       where: { userId },
       include: [
-        {
-          model: Product,
-          as: "product",
-          where: { isActive: true },
-          required: true
-        }
+        { model: Product, as: "product", where: { isActive: true }, required: true }
       ]
     });
 
-    res.status(200).json({
-      status: "success",
-      data: { count }
-    });
-
+    res.status(200).json({ status: "success", data: { count } });
   } catch (error) {
-    console.error("Error getting wishlist count:", error);
-    res.status(500).json({ 
-      status: "error",
-      message: "Internal Server Error" 
-    });
+    console.error("Error:", error);
+    res.status(500).json({ status: "error", message: "Internal Server Error" });
   }
-});
+};
 
-// Move wishlist item to cart
-router.post("/:wishlistItemId/move-to-cart", async (req, res) => {
+export const moveToCart = async (req, res) => {
   try {
     const userId = req.user.id;
     const { wishlistItemId } = req.params;
     const { quantity = 1, variantId = null } = req.body;
 
-    const wishlistItem = await Wishlist.findOne({
-      where: { 
-        id: wishlistItemId,
-        userId 
-      },
-      include: [
-        {
-          model: Product,
-          as: "product",
-          where: { isActive: true },
-          required: true
-        }
-      ]
+    const item = await Wishlist.findOne({
+      where: { id: wishlistItemId, userId },
+      include: [{ model: Product, as: "product", where: { isActive: true }, required: true }]
     });
 
-    if (!wishlistItem) {
-      return res.status(404).json({
-        status: "error",
-        message: "Wishlist item not found"
-      });
+    if (!item) {
+      return res.status(404).json({ status: "error", message: "Wishlist item not found" });
     }
 
-    // Check stock availability
-    const availableStock = wishlistItem.product.stockQuantity;
-    if (availableStock < quantity) {
+    const stock = item.product.stockQuantity;
+    if (stock < quantity) {
       return res.status(400).json({
         status: "error",
-        message: `Only ${availableStock} items available in stock`
+        message: `Only ${stock} items available`
       });
     }
 
-    // Check if item already exists in cart
-    const existingCartItem = await Cart.findOne({
+    const existing = await Cart.findOne({
       where: {
         userId,
-        productId: wishlistItem.productId,
+        productId: item.productId,
         variantId: variantId || null
       }
     });
 
-    if (existingCartItem) {
-      // Update existing cart item
-      const newQuantity = existingCartItem.quantity + quantity;
-      
-      if (newQuantity > availableStock) {
+    if (existing) {
+      const newQty = existing.quantity + quantity;
+      if (newQty > stock) {
         return res.status(400).json({
           status: "error",
-          message: `Cannot add ${quantity} items. Only ${availableStock - existingCartItem.quantity} more available`
+          message: `Only ${stock - existing.quantity} more can be added`
         });
       }
 
-      existingCartItem.quantity = newQuantity;
-      existingCartItem.unitPrice = wishlistItem.product.price;
-      await existingCartItem.save();
+      existing.quantity = newQty;
+      existing.unitPrice = item.product.price;
+      await existing.save();
     } else {
-      // Create new cart item
       await Cart.create({
         userId,
-        productId: wishlistItem.productId,
+        productId: item.productId,
         variantId,
         quantity,
-        unitPrice: wishlistItem.product.price
+        unitPrice: item.product.price
       });
     }
 
-    // Remove from wishlist
-    await wishlistItem.destroy();
+    await item.destroy();
 
     res.status(200).json({
       status: "success",
-      message: "Product moved to cart successfully"
+      message: "Moved to cart"
     });
 
   } catch (error) {
-    console.error("Error moving to cart:", error);
-    res.status(500).json({ 
-      status: "error",
-      message: "Internal Server Error" 
-    });
+    console.error("Error:", error);
+    res.status(500).json({ status: "error", message: "Internal Server Error" });
   }
-});
-
-export default router;
+};

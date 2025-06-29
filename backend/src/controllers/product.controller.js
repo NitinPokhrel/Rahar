@@ -1,11 +1,9 @@
-import { Router } from "express";
-import { Product, Category, Review, ProductVariant } from "../models/index.model.js";
-import { Op } from "sequelize";
+// controllers/product.controller.js
+import { Product, Category, ProductVariant, Review, User } from "../models/index.model.js";
+import { Op, fn, col } from "sequelize";
+import { sequelize } from "../models/index.model.js";
 
-const router = Router();
-
-// Get all products with filters, search, and pagination
-router.get("/", async (req, res) => {
+export const getAllProducts = async (req, res) => {
   try {
     const {
       page = 1,
@@ -21,13 +19,9 @@ router.get("/", async (req, res) => {
     } = req.query;
 
     const offset = (page - 1) * limit;
-    
-    // Build where conditions
-    const whereConditions = {
-      isActive: true
-    };
 
-    // Search functionality
+    const whereConditions = { isActive: true };
+
     if (search) {
       whereConditions[Op.or] = [
         { name: { [Op.iLike]: `%${search}%` } },
@@ -36,24 +30,15 @@ router.get("/", async (req, res) => {
       ];
     }
 
-    // Category filter
-    if (category) {
-      whereConditions.categoryId = category;
-    }
-
-    // Price range filter
+    if (category) whereConditions.categoryId = category;
     if (minPrice || maxPrice) {
       whereConditions.price = {};
       if (minPrice) whereConditions.price[Op.gte] = minPrice;
       if (maxPrice) whereConditions.price[Op.lte] = maxPrice;
     }
 
-    // Featured filter
-    if (featured === 'true') {
-      whereConditions.isFeatured = true;
-    }
+    if (featured === 'true') whereConditions.isFeatured = true;
 
-    // Tags filter
     if (tags) {
       const tagArray = tags.split(',');
       whereConditions.tags = { [Op.overlap]: tagArray };
@@ -62,18 +47,8 @@ router.get("/", async (req, res) => {
     const { count, rows: products } = await Product.findAndCountAll({
       where: whereConditions,
       include: [
-        {
-          model: Category,
-          as: "category",
-          attributes: ["id", "name", "slug"]
-        },
-        {
-          model: ProductVariant,
-          as: "variants",
-          where: { isActive: true },
-          required: false,
-          attributes: ["id", "name", "price", "comparePrice", "stockQuantity"]
-        }
+        { model: Category, as: "category", attributes: ["id", "name", "slug"] },
+        { model: ProductVariant, as: "variants", where: { isActive: true }, required: false, attributes: ["id", "name", "price", "comparePrice", "stockQuantity"] }
       ],
       order: [[sortBy, sortOrder.toUpperCase()]],
       limit: parseInt(limit),
@@ -97,49 +72,28 @@ router.get("/", async (req, res) => {
         }
       }
     });
-
   } catch (error) {
     console.error("Error fetching products:", error);
-    res.status(500).json({ 
-      status: "error",
-      message: "Internal Server Error" 
-    });
+    res.status(500).json({ status: "error", message: "Internal Server Error" });
   }
-});
+};
 
-// Get single product by slug
-router.get("/:slug", async (req, res) => {
+export const getSingleProduct = async (req, res) => {
   try {
     const { slug } = req.params;
 
     const product = await Product.findOne({
-      where: { 
-        slug,
-        isActive: true 
-      },
+      where: { slug, isActive: true },
       include: [
-        {
-          model: Category,
-          as: "category",
-          attributes: ["id", "name", "slug"]
-        },
-        {
-          model: ProductVariant,
-          as: "variants",
-          where: { isActive: true },
-          required: false
-        },
+        { model: Category, as: "category", attributes: ["id", "name", "slug"] },
+        { model: ProductVariant, as: "variants", where: { isActive: true }, required: false },
         {
           model: Review,
           as: "reviews",
           where: { isApproved: true },
           required: false,
           include: [
-            {
-              model: User,
-              as: "user",
-              attributes: ["id", "firstName", "lastName", "avatar"]
-            }
+            { model: User, as: "user", attributes: ["id", "firstName", "lastName", "avatar"] }
           ],
           order: [["createdAt", "DESC"]],
           limit: 10
@@ -148,21 +102,14 @@ router.get("/:slug", async (req, res) => {
     });
 
     if (!product) {
-      return res.status(404).json({
-        status: "error",
-        message: "Product not found"
-      });
+      return res.status(404).json({ status: "error", message: "Product not found" });
     }
 
-    // Calculate average rating
     const avgRating = await Review.findOne({
-      where: { 
-        productId: product.id,
-        isApproved: true 
-      },
+      where: { productId: product.id, isApproved: true },
       attributes: [
-        [sequelize.fn('AVG', sequelize.col('rating')), 'avgRating'],
-        [sequelize.fn('COUNT', sequelize.col('id')), 'totalReviews']
+        [fn('AVG', col('rating')), 'avgRating'],
+        [fn('COUNT', col('id')), 'totalReviews']
       ],
       raw: true
     });
@@ -177,98 +124,61 @@ router.get("/:slug", async (req, res) => {
         }
       }
     });
-
   } catch (error) {
     console.error("Error fetching product:", error);
-    res.status(500).json({ 
-      status: "error",
-      message: "Internal Server Error" 
-    });
+    res.status(500).json({ status: "error", message: "Internal Server Error" });
   }
-});
+};
 
-// Get featured products
-router.get("/featured/list", async (req, res) => {
+export const getFeaturedProducts = async (req, res) => {
   try {
     const { limit = 8 } = req.query;
 
     const products = await Product.findAll({
-      where: { 
-        isActive: true,
-        isFeatured: true 
-      },
+      where: { isActive: true, isFeatured: true },
       include: [
-        {
-          model: Category,
-          as: "category",
-          attributes: ["id", "name", "slug"]
-        }
+        { model: Category, as: "category", attributes: ["id", "name", "slug"] }
       ],
       order: [["createdAt", "DESC"]],
       limit: parseInt(limit)
     });
 
-    res.status(200).json({
-      status: "success",
-      data: { products }
-    });
-
+    res.status(200).json({ status: "success", data: { products } });
   } catch (error) {
     console.error("Error fetching featured products:", error);
-    res.status(500).json({ 
-      status: "error",
-      message: "Internal Server Error" 
-    });
+    res.status(500).json({ status: "error", message: "Internal Server Error" });
   }
-});
+};
 
-// Get related products (same category)
-router.get("/:productId/related", async (req, res) => {
+export const getRelatedProducts = async (req, res) => {
   try {
     const { productId } = req.params;
     const { limit = 4 } = req.query;
 
-    // First get the product to find its category
     const product = await Product.findByPk(productId, {
       attributes: ["categoryId"]
     });
 
     if (!product) {
-      return res.status(404).json({
-        status: "error",
-        message: "Product not found"
-      });
+      return res.status(404).json({ status: "error", message: "Product not found" });
     }
 
     const relatedProducts = await Product.findAll({
       where: {
         categoryId: product.categoryId,
-        id: { [Op.ne]: productId }, // Exclude current product
+        id: { [Op.ne]: productId },
         isActive: true
       },
       include: [
-        {
-          model: Category,
-          as: "category",
-          attributes: ["id", "name", "slug"]
-        }
+        { model: Category, as: "category", attributes: ["id", "name", "slug"] }
       ],
       order: [["createdAt", "DESC"]],
       limit: parseInt(limit)
     });
 
-    res.status(200).json({
-      status: "success",
-      data: { products: relatedProducts }
-    });
-
+    res.status(200).json({ status: "success", data: { products: relatedProducts } });
   } catch (error) {
     console.error("Error fetching related products:", error);
-    res.status(500).json({ 
-      status: "error",
-      message: "Internal Server Error" 
-    });
+    res.status(500).json({ status: "error", message: "Internal Server Error" });
   }
-});
-
-export default router;
+};

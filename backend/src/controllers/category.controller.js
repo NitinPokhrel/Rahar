@@ -1,11 +1,11 @@
 
-import { Router } from "express";
+
 import { Category } from "../models/index.model.js";
 
-const router = Router();
 
 // Get all active categories with hierarchy
-router.get("/", async (req, res) => {
+
+ const getAllCategories = async (req, res) => {
   try {
     const categories = await Category.findAll({
       where: { isActive: true },
@@ -35,10 +35,9 @@ router.get("/", async (req, res) => {
     console.error("Error fetching categories:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-});
+};
 
-// Get category by slug with products
-router.get("/:slug", async (req, res) => {
+const getCategoryBySlug =  async (req, res) => {
   try {
     const { slug } = req.params;
     const { page = 1, limit = 20 } = req.query;
@@ -82,6 +81,9 @@ router.get("/:slug", async (req, res) => {
     console.error("Error fetching category:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-});
+};
 
-export default router;
+export {
+    getAllCategories,
+    getCategoryBySlug
+};

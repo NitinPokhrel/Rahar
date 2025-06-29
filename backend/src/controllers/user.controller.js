@@ -1,11 +1,7 @@
-
-import { Router } from "express";
+// controllers/user.controller.js
 import { User } from "../models/index.model.js";
 
-const router = Router();
-
-// Get user profile
-router.get("/", async (req, res) => {
+export const getUserProfile = async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -29,10 +25,9 @@ router.get("/", async (req, res) => {
     console.error("Error fetching profile:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-});
+};
 
-// Update user profile
-router.patch("/", async (req, res) => {
+export const updateUserProfile = async (req, res) => {
   try {
     const userId = req.user.id;
     const {
@@ -63,7 +58,6 @@ router.patch("/", async (req, res) => {
 
     await user.update(updateData);
 
-    // Return updated user without password
     const updatedUser = await User.findByPk(userId, {
       attributes: { exclude: ["password"] }
     });
@@ -77,6 +71,4 @@ router.patch("/", async (req, res) => {
     console.error("Error updating profile:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-});
-
-export default router;
+};

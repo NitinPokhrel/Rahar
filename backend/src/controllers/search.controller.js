@@ -1,18 +1,15 @@
-import { Router } from "express";
+// controllers/search.controller.js
 import { Product, Category, ProductVariant } from "../models/index.model.js";
 import { Op } from "sequelize";
 
-const router = Router();
-
-// Search products
-router.get("/", async (req, res) => {
+export const searchProducts = async (req, res) => {
   try {
     const {
-      q, // search query
+      q,
       category,
       minPrice,
       maxPrice,
-      sortBy = "relevance", // relevance, price_low, price_high, newest, rating
+      sortBy = "relevance",
       page = 1,
       limit = 20,
     } = req.query;
@@ -21,7 +18,6 @@ router.get("/", async (req, res) => {
     let whereClause = { isActive: true };
     let orderClause = [];
 
-    // Text search
     if (q) {
       whereClause[Op.or] = [
         { name: { [Op.iLike]: `%${q}%` } },
@@ -31,24 +27,17 @@ router.get("/", async (req, res) => {
       ];
     }
 
-    // Category filter
     if (category) {
-      const categoryRecord = await Category.findOne({
-        where: { slug: category },
-      });
-      if (categoryRecord) {
-        whereClause.categoryId = categoryRecord.id;
-      }
+      const categoryRecord = await Category.findOne({ where: { slug: category } });
+      if (categoryRecord) whereClause.categoryId = categoryRecord.id;
     }
 
-    // Price range filter
     if (minPrice || maxPrice) {
       whereClause.price = {};
       if (minPrice) whereClause.price[Op.gte] = parseFloat(minPrice);
       if (maxPrice) whereClause.price[Op.lte] = parseFloat(maxPrice);
     }
 
-    // Sorting
     switch (sortBy) {
       case "price_low":
         orderClause = [["price", "ASC"]];
@@ -63,10 +52,7 @@ router.get("/", async (req, res) => {
         orderClause = [["name", "ASC"]];
         break;
       default:
-        orderClause = [
-          ["isFeatured", "DESC"],
-          ["createdAt", "DESC"],
-        ];
+        orderClause = [["isFeatured", "DESC"], ["createdAt", "DESC"]];
     }
 
     const products = await Product.findAndCountAll({
@@ -115,10 +101,9 @@ router.get("/", async (req, res) => {
     console.error("Error searching products:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-});
+};
 
-// Get search suggestions
-router.get("/suggestions", async (req, res) => {
+export const getSearchSuggestions = async (req, res) => {
   try {
     const { q } = req.query;
 
@@ -152,6 +137,4 @@ router.get("/suggestions", async (req, res) => {
     console.error("Error fetching search suggestions:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-});
-
-export default router;
+};

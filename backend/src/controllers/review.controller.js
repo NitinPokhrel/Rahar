@@ -1,37 +1,27 @@
-
-import { Router } from "express";
-import { Review, Product, User, Order } from "../models/index.model.js";
+// controllers/review.controller.js
+import { Review, Product, User, Order, OrderItem } from "../models/index.model.js";
+import { sequelize } from "../models/index.model.js";
 import { Op } from "sequelize";
 
-const router = Router();
-
-// Get reviews for a product
-router.get("/product/:productId", async (req, res) => {
+export const getProductReviews = async (req, res) => {
   try {
     const { productId } = req.params;
     const { page = 1, limit = 10, rating } = req.query;
     const offset = (page - 1) * limit;
 
     const whereClause = { productId };
-    if (rating) {
-      whereClause.rating = rating;
-    }
+    if (rating) whereClause.rating = rating;
 
     const reviews = await Review.findAndCountAll({
       where: whereClause,
       include: [
-        {
-          model: User,
-          as: "user",
-          attributes: ["firstName", "lastName", "avatar"]
-        }
+        { model: User, as: "user", attributes: ["firstName", "lastName", "avatar"] }
       ],
       limit: parseInt(limit),
       offset: parseInt(offset),
       order: [["createdAt", "DESC"]]
     });
 
-    // Get rating statistics
     const ratingStats = await Review.findAll({
       where: { productId },
       attributes: [
@@ -60,15 +50,13 @@ router.get("/product/:productId", async (req, res) => {
     console.error("Error fetching reviews:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-});
+};
 
-// Add/Update review for a product
-router.post("/", async (req, res) => {
+export const submitReview = async (req, res) => {
   try {
     const userId = req.user.id;
     const { productId, orderId, rating, comment } = req.body;
 
-    // Validate input
     if (!productId || !rating) {
       return res.status(400).json({
         message: "Product ID and rating are required",
@@ -76,12 +64,11 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Check if user has purchased this product
     const order = await Order.findOne({
-      where: { 
-        id: orderId, 
+      where: {
+        id: orderId,
         userId,
-        status: "delivered" 
+        status: "delivered"
       },
       include: [
         {
@@ -99,25 +86,14 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Check if review already exists
-    const existingReview = await Review.findOne({
+    let review = await Review.findOne({
       where: { userId, productId, orderId }
     });
 
-    let review;
-    if (existingReview) {
-      // Update existing review
-      await existingReview.update({ rating, comment });
-      review = existingReview;
+    if (review) {
+      await review.update({ rating, comment });
     } else {
-      // Create new review
-      review = await Review.create({
-        userId,
-        productId,
-        orderId,
-        rating,
-        comment
-      });
+      review = await Review.create({ userId, productId, orderId, rating, comment });
     }
 
     return res.status(201).json({
@@ -129,10 +105,9 @@ router.post("/", async (req, res) => {
     console.error("Error submitting review:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-});
+};
 
-// Get user's reviews
-router.get("/my-reviews", async (req, res) => {
+export const getUserReviews = async (req, res) => {
   try {
     const userId = req.user.id;
     const { page = 1, limit = 10 } = req.query;
@@ -141,11 +116,7 @@ router.get("/my-reviews", async (req, res) => {
     const reviews = await Review.findAndCountAll({
       where: { userId },
       include: [
-        {
-          model: Product,
-          as: "product",
-          attributes: ["id", "name", "slug", "images"]
-        }
+        { model: Product, as: "product", attributes: ["id", "name", "slug", "images"] }
       ],
       limit: parseInt(limit),
       offset: parseInt(offset),
@@ -169,6 +140,4 @@ router.get("/my-reviews", async (req, res) => {
     console.error("Error fetching user reviews:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-});
-
-export default router;
+};

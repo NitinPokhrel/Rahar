@@ -1,11 +1,8 @@
-
-import { Router } from "express";
+// controllers/newsletter.controller.js
 import { NewsletterSubscription } from "../models/index.model.js";
+import { sequelize } from "../models/index.model.js";
 
-const router = Router();
-
-// Subscribe to newsletter
-router.post("/subscribe", async (req, res) => {
+export const subscribeNewsletter = async (req, res) => {
   try {
     const { email, firstName, lastName } = req.body;
 
@@ -16,7 +13,6 @@ router.post("/subscribe", async (req, res) => {
       });
     }
 
-    // Check if already subscribed
     const existingSubscription = await NewsletterSubscription.findOne({
       where: { email }
     });
@@ -28,7 +24,6 @@ router.post("/subscribe", async (req, res) => {
           status: "error"
         });
       } else {
-        // Reactivate subscription
         await existingSubscription.update({
           isActive: true,
           firstName,
@@ -44,7 +39,6 @@ router.post("/subscribe", async (req, res) => {
       }
     }
 
-    // Create new subscription
     await NewsletterSubscription.create({
       email,
       firstName,
@@ -60,10 +54,9 @@ router.post("/subscribe", async (req, res) => {
     console.error("Error subscribing to newsletter:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-});
+};
 
-// Unsubscribe from newsletter
-router.post("/unsubscribe", async (req, res) => {
+export const unsubscribeNewsletter = async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -98,6 +91,4 @@ router.post("/unsubscribe", async (req, res) => {
     console.error("Error unsubscribing from newsletter:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-});
-
-export default router;
+};

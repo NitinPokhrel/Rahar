@@ -1,12 +1,8 @@
-
-import { Router } from "express";
+// controllers/coupon.controller.js
 import { Coupon, CouponUsage } from "../models/index.model.js";
-import { Op } from "sequelize";
+import { Op, Sequelize } from "sequelize";
 
-const router = Router();
-
-// Validate coupon code
-router.post("/validate", async (req, res) => {
+export const validateCoupon = async (req, res) => {
   try {
     const userId = req.user.id;
     const { code, orderTotal = 0 } = req.body;
@@ -19,9 +15,9 @@ router.post("/validate", async (req, res) => {
     }
 
     const coupon = await Coupon.findOne({
-      where: { 
+      where: {
         code: code.toUpperCase(),
-        isActive: true 
+        isActive: true
       }
     });
 
@@ -32,7 +28,6 @@ router.post("/validate", async (req, res) => {
       });
     }
 
-    // Check coupon validity
     const validation = coupon.isValid(userId, orderTotal);
     if (!validation.valid) {
       return res.status(400).json({
@@ -41,7 +36,6 @@ router.post("/validate", async (req, res) => {
       });
     }
 
-    // Check per-user usage limit
     if (coupon.usageLimitPerUser) {
       const userUsageCount = await CouponUsage.count({
         where: { couponId: coupon.id, userId }
@@ -75,10 +69,9 @@ router.post("/validate", async (req, res) => {
     console.error("Error validating coupon:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-});
+};
 
-// Get available coupons for user
-router.get("/available", async (req, res) => {
+export const getAvailableCoupons = async (req, res) => {
   try {
     const userId = req.user.id;
     const now = new Date();
@@ -96,13 +89,15 @@ router.get("/available", async (req, res) => {
         ],
         [Op.or]: [
           { usageLimit: null },
-          { usedCount: { [Op.lt]: sequelize.col('usageLimit') } }
+          { usedCount: { [Op.lt]: Sequelize.col("usageLimit") } }
         ]
       },
-      attributes: ["id", "code", "name", "description", "type", "value", "minimumAmount", "maxDiscountAmount", "endDate"]
+      attributes: [
+        "id", "code", "name", "description", "type", "value",
+        "minimumAmount", "maxDiscountAmount", "endDate"
+      ]
     });
 
-    // Filter coupons based on per-user usage limit
     const availableCoupons = [];
     for (const coupon of coupons) {
       if (coupon.usageLimitPerUser) {
@@ -126,6 +121,4 @@ router.get("/available", async (req, res) => {
     console.error("Error fetching available coupons:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-});
-
-export default router;
+};

@@ -1,18 +1,14 @@
+// controllers/order.controller.js
+import { Op, Sequelize } from "sequelize";
+import { Order, OrderItem, Product, ProductVariant, Coupon } from "../models/index.model.js";
+import { sequelize } from "../models/index.model.js";
 
-import { Router } from "express";
-import { Order, OrderItem, Product, ProductVariant, User, Coupon } from "../models/index.model.js";
-import { sequelize } from "../../models/index.js";
-
-const router = Router();
-
-// Create new order
-router.post("/", async (req, res) => {
+export const createOrder = async (req, res) => {
   const transaction = await sequelize.transaction();
-  
   try {
     const userId = req.user.id;
     const {
-      items, // [{ productId, variantId?, quantity, unitPrice }]
+      items,
       shippingAddressId,
       paymentMethod,
       couponCode,
@@ -20,13 +16,9 @@ router.post("/", async (req, res) => {
     } = req.body;
 
     if (!items || items.length === 0) {
-      return res.status(400).json({
-        message: "Order items are required",
-        status: "error"
-      });
+      return res.status(400).json({ message: "Order items are required", status: "error" });
     }
 
-    // Calculate subtotal
     let subtotal = 0;
     for (const item of items) {
       subtotal += parseFloat(item.unitPrice) * item.quantity;
@@ -35,7 +27,6 @@ router.post("/", async (req, res) => {
     let discountAmount = 0;
     let couponId = null;
 
-    // Apply coupon if provided
     if (couponCode) {
       const coupon = await Coupon.findOne({
         where: { code: couponCode, isActive: true }
@@ -48,17 +39,13 @@ router.post("/", async (req, res) => {
           couponId = coupon.id;
         } else {
           await transaction.rollback();
-          return res.status(400).json({
-            message: validation.reason,
-            status: "error"
-          });
+          return res.status(400).json({ message: validation.reason, status: "error" });
         }
       }
     }
 
     const total = subtotal - discountAmount;
 
-    // Create order
     const order = await Order.create({
       userId,
       subtotal,
@@ -72,28 +59,20 @@ router.post("/", async (req, res) => {
       paymentStatus: paymentMethod === "cash_on_delivery" ? "pending" : "pending"
     }, { transaction });
 
-    // Create order items
-    const orderItems = await Promise.all(
-      items.map(item => 
-        OrderItem.create({
-          orderId: order.id,
-          productId: item.productId,
-          variantId: item.variantId,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice
-        }, { transaction })
-      )
-    );
+    await Promise.all(items.map(item =>
+      OrderItem.create({
+        orderId: order.id,
+        productId: item.productId,
+        variantId: item.variantId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice
+      }, { transaction })
+    ));
 
-    // Update coupon usage count
     if (couponId) {
-      await Coupon.increment('usedCount', { 
-        where: { id: couponId },
-        transaction 
-      });
+      await Coupon.increment('usedCount', { where: { id: couponId }, transaction });
     }
 
-    // Update product stock quantities
     for (const item of items) {
       if (item.variantId) {
         await ProductVariant.decrement('stockQuantity', {
@@ -112,23 +91,14 @@ router.post("/", async (req, res) => {
 
     await transaction.commit();
 
-    // Fetch complete order data
     const completeOrder = await Order.findByPk(order.id, {
       include: [
         {
           model: OrderItem,
           as: "items",
           include: [
-            {
-              model: Product,
-              as: "product",
-              attributes: ["id", "name", "images"]
-            },
-            {
-              model: ProductVariant,
-              as: "variant",
-              attributes: ["id", "name", "attributes"]
-            }
+            { model: Product, as: "product", attributes: ["id", "name", "images"] },
+            { model: ProductVariant, as: "variant", attributes: ["id", "name", "attributes"] }
           ]
         }
       ]
@@ -139,45 +109,33 @@ router.post("/", async (req, res) => {
       status: "success",
       data: completeOrder
     });
+
   } catch (error) {
     await transaction.rollback();
     console.error("Error creating order:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-});
+};
 
-// Get user's orders
-router.get("/", async (req, res) => {
+export const getUserOrders = async (req, res) => {
   try {
     const userId = req.user.id;
     const { page = 1, limit = 10, status } = req.query;
     const offset = (page - 1) * limit;
 
     const whereClause = { userId };
-    if (status) {
-      whereClause.status = status;
-    }
+    if (status) whereClause.status = status;
 
     const orders = await Order.findAndCountAll({
       where: whereClause,
-      include: [
-        {
-          model: OrderItem,
-          as: "items",
-          include: [
-            {
-              model: Product,
-              as: "product",
-              attributes: ["id", "name", "slug", "images"]
-            },
-            {
-              model: ProductVariant,
-              as: "variant",
-              attributes: ["id", "name", "attributes"]
-            }
-          ]
-        }
-      ],
+      include: [{
+        model: OrderItem,
+        as: "items",
+        include: [
+          { model: Product, as: "product", attributes: ["id", "name", "slug", "images"] },
+          { model: ProductVariant, as: "variant", attributes: ["id", "name", "attributes"] }
+        ]
+      }],
       limit: parseInt(limit),
       offset: parseInt(offset),
       order: [["createdAt", "DESC"]]
@@ -200,10 +158,9 @@ router.get("/", async (req, res) => {
     console.error("Error fetching orders:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-});
+};
 
-// Get single order details
-router.get("/:orderId", async (req, res) => {
+export const getSingleOrder = async (req, res) => {
   try {
     const userId = req.user.id;
     const { orderId } = req.params;
@@ -215,14 +172,8 @@ router.get("/:orderId", async (req, res) => {
           model: OrderItem,
           as: "items",
           include: [
-            {
-              model: Product,
-              as: "product"
-            },
-            {
-              model: ProductVariant,
-              as: "variant"
-            }
+            { model: Product, as: "product" },
+            { model: ProductVariant, as: "variant" }
           ]
         },
         {
@@ -234,10 +185,7 @@ router.get("/:orderId", async (req, res) => {
     });
 
     if (!order) {
-      return res.status(404).json({
-        message: "Order not found",
-        status: "error"
-      });
+      return res.status(404).json({ message: "Order not found", status: "error" });
     }
 
     return res.status(200).json({
@@ -249,28 +197,24 @@ router.get("/:orderId", async (req, res) => {
     console.error("Error fetching order details:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-});
+};
 
-// Cancel order
-router.patch("/:orderId/cancel", async (req, res) => {
+export const cancelOrder = async (req, res) => {
   try {
     const userId = req.user.id;
     const { orderId } = req.params;
     const { reason } = req.body;
 
     const order = await Order.findOne({
-      where: { 
-        id: orderId, 
+      where: {
+        id: orderId,
         userId,
         status: { [Op.in]: ["pending", "confirmed"] }
       }
     });
 
     if (!order) {
-      return res.status(404).json({
-        message: "Order not found or cannot be cancelled",
-        status: "error"
-      });
+      return res.status(404).json({ message: "Order not found or cannot be cancelled", status: "error" });
     }
 
     await order.update({
@@ -288,6 +232,4 @@ router.patch("/:orderId/cancel", async (req, res) => {
     console.error("Error cancelling order:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-});
-
-export default router;
+};
