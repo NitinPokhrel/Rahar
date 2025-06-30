@@ -33,6 +33,16 @@ const User = (sequelize) => {
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
       },
+
+      clerkUserId: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        unique: true,
+        validate: {
+          notEmpty: { msg: "Clerk user ID is required" },
+        },
+      },
+
       firstName: {
         type: DataTypes.STRING(50),
         allowNull: false,
