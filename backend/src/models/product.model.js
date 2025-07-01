@@ -24,33 +24,39 @@ const Product = (sequelize) => {
         allowNull: false,
         validate: {
           notEmpty: { msg: "Product name is required" },
-          len: { args: [2, 200], msg: "Product name must be between 2-200 characters" },
+          len: {
+            args: [2, 200],
+            msg: "Product name must be between 2-200 characters",
+          },
         },
       },
       images: {
         type: DataTypes.JSON,
         allowNull: true,
         validate: {
-  isValidImage(value) {
-    if (!value || !Array.isArray(value)) return;
+          isValidImage(value) {
+            if (!value || !Array.isArray(value)) return;
 
-    for (const img of value) {
-      const { url, height, width, blurhash } = img;
+            for (const img of value) {
+              const { url, height, width, blurhash, public_id } = img;
 
-      if (typeof url !== "string" || !/^https?:\/\/.+/.test(url)) {
-        throw new Error("Image URL must be a valid URL");
-      }
-      if (typeof height !== "number" || typeof width !== "number") {
-        throw new Error("Image height and width must be numbers");
-      }
-      if (typeof blurhash !== "string") {
-        throw new Error("Image blurhash must be a string");
-      }
-    }
-  }
-}
-
+              if (typeof url !== "string" || !/^https?:\/\/.+/.test(url)) {
+                throw new Error("Image URL must be a valid URL");
+              }
+              if (typeof height !== "number" || typeof width !== "number") {
+                throw new Error("Image height and width must be numbers");
+              }
+              if (typeof blurhash !== "string") {
+                throw new Error("Image blurhash must be a string");
+              }
+              if (typeof public_id !== "string" || public_id.trim() === "") {
+                throw new Error("Image public_id must be a non-empty string");
+              }
+            }
+          },
+        },
       },
+
       slug: {
         type: DataTypes.STRING(250),
         allowNull: false,
@@ -65,13 +71,19 @@ const Product = (sequelize) => {
       description: {
         type: DataTypes.TEXT,
         validate: {
-          len: { args: [0, 5000], msg: "Description cannot exceed 5000 characters" },
+          len: {
+            args: [0, 5000],
+            msg: "Description cannot exceed 5000 characters",
+          },
         },
       },
       shortDescription: {
         type: DataTypes.TEXT,
         validate: {
-          len: { args: [0, 500], msg: "Short description cannot exceed 500 characters" },
+          len: {
+            args: [0, 500],
+            msg: "Short description cannot exceed 500 characters",
+          },
         },
       },
       sku: {

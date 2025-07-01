@@ -20,7 +20,8 @@ router.post(
   upload.fields([{ name: "image", maxCount: 1 }]),
   createCategory
 );
-router.put('/:id', updateCategory);
+router.put('/:id',
+  upload.fields([{ name: "image", maxCount: 1 }]), updateCategory);
 router.delete('/:id', deleteCategory);
 
 export default router;

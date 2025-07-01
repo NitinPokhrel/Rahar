@@ -1,7 +1,8 @@
 
 
-import { photoWork } from "../config/photoWork.js";
+import { deleteImage, photoWork } from "../config/photoWork.js";
 import { Category } from "../models/index.model.js";
+import { Product, ProductVariant } from "../models/index.model.js";
 
 
 
@@ -49,8 +50,15 @@ export const createCategory = async (req, res) => {
       const file = req.files["image"][0];
       const photo = await photoWork(file);
       
-      image = photo.secure_url; 
-      console.log("✅ Uploaded image:", image);
+      image = {
+        url: photo.secure_url,
+        public_id: photo.public_id,
+        height: photo.height,
+        width: photo.width,
+        blurhash: photo.blurhash || null,
+      };
+
+      console.log("✅ Uploaded image:", photo);
     }
 
     // Create category
@@ -81,32 +89,53 @@ export const createCategory = async (req, res) => {
 
 
 
+
+
 export const updateCategory = async (req, res) => {
   try {
-    const categoryId = req.params.id;
+    const { id } = req.params;
+    const updates = { ...req.body };
 
-    const [updatedRows] = await Category.update(req.body, {
-      where: { id: categoryId },
-    });
-
-    if (updatedRows === 0) {
+    const category = await Category.findByPk(id);
+    if (!category) {
       return res.status(404).json({ message: "Category not found" });
     }
 
-    const updatedCategory = await Category.findByPk(categoryId);
+    // Handle new image upload
+    if (req.files && req.files["image"] && req.files["image"].length > 0) {
+      const file = req.files["image"][0];
+      const photo = await photoWork(file);
+      updates.image = {
+        url: photo.secure_url,
+        public_id: photo.public_id,
+        height: photo.height,
+        width: photo.width,
+        blurhash: photo.blurhash || null,
+      };
+      // delete previous image 
+      if (category.image && category.image.public_id) {
+        await deleteImage(category.image.public_id);
+        console.log("✅ Deleted old image:", category.image);
+      }
+    }
+
+    // Update category
+    await category.update(updates);
 
     return res.status(200).json({
-      message: "Category updated successfully",
-      category: updatedCategory,
+      message: "✅ Category updated successfully",
+      category,
     });
+
   } catch (error) {
-    console.error("Error updating category:", error);
+    console.error("💥 Error updating category:", error);
     res.status(500).json({
       message: "Internal server error",
       error: error.message,
     });
   }
 };
+
 
 
 export const deleteCategory =  async (req, res) => {
@@ -137,7 +166,7 @@ export const getCategoryBySlug =  async (req, res) => {
     const { slug } = req.params;
     const { page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
-
+    console.log("Fetching category with slug:", slug);
     const category = await Category.findOne({
       where: { slug, isActive: true },
       include: [

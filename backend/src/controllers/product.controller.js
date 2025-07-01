@@ -91,6 +91,7 @@ export const createProduct = async (req, res) => {
           height: photo.height,
           width: photo.width,
           blurhash: photo.blurhash || null,
+          public_id: photo.public_id,
         });
       }
       console.log("✅ All images uploaded:", images);

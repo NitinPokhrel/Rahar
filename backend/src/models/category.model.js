@@ -59,11 +59,25 @@ const Category = (sequelize) => {
       },
 
       image: {
-        type: DataTypes.TEXT,
+        type: DataTypes.JSON,
+        allowNull: true,
         validate: {
-          isUrl: { msg: "Image must be a valid URL" },
+          isValidImage(value) {
+            if (!value) return;
+
+            const { url, public_id } = value;
+
+            if (typeof url !== "string" || !/^https?:\/\/.+/.test(url)) {
+              throw new Error("Image URL must be a valid URL");
+            }
+
+            if (typeof public_id !== "string" || public_id.trim() === "") {
+              throw new Error("Image public_id must be a non-empty string");
+            }
+          },
         },
       },
+
       isActive: {
         type: DataTypes.BOOLEAN,
         defaultValue: true,
@@ -93,8 +107,8 @@ const Category = (sequelize) => {
       indexes: [
         { fields: ["slug"] },
         { fields: ["parentId"] },
-        // { fields: ["isActive"] },
-        // { fields: ["sortOrder"] },
+        { fields: ["isActive"] },
+        { fields: ["sortOrder"] },
       ],
     }
   );
@@ -103,5 +117,3 @@ const Category = (sequelize) => {
 };
 
 export default Category;
-
-
