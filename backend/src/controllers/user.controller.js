@@ -112,52 +112,70 @@ export const getUserProfile = async (req, res) => {
 
 export const updateUserProfile = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const { firstName, lastName, phone, dateOfBirth, gender } = req.body;
+    const { userId } = req.params; 
 
-    const updateData = {};
+    const {
 
-    if (firstName !== undefined) updateData.firstName = firstName;
-    if (lastName !== undefined) updateData.lastName = lastName;
-    if (phone !== undefined) updateData.phone = phone;
-    if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth;
-    if (gender !== undefined) updateData.gender = gender;
+      firstName,
+      lastName,
+      email,
+      phone,
+      dateOfBirth,
+      gender,
+      role = "customer",
+      permissions = [],
+      address,
 
-    if (req.files?.avatar?.length) {
-      const file = req.files.avatar[0];
-      const photo = await photoWork(file);
-      updateData.avatar = {
-        blurhash: photo.blurhash,
-        url: photo.secure_url,
-        public_id: photo.public_id,
-        height: photo.height,
-        width: photo.width,
-      };
+
+    } = req.body; 
+
+    let avatar;
+
+    if (req.files && req.files["avatar"]) {
+      for (const file of req.files["avatar"]) {
+        const photo = await photoWork(file);
+        const image = {
+          blurhash: photo.blurhash,
+          url: photo.secure_url,
+          public_id: photo.public_id,
+          height: photo.height,
+          width: photo.width,
+        };
+        avatar = image;
+      }
     }
 
-    const [affectedRows, [updatedUser]] = await User.update(updateData, {
-      where: { id: userId },
-      returning: true,
-      individualHooks: true, // important if you rely on hooks like beforeUpdate
+    const user = await User.findByPk(userId);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    await user.update({
+      firstName,
+      lastName,
+      email,
+      phone: phone || null,
+      dateOfBirth: dateOfBirth || null,
+      gender,
+      role,
+      permissions,
+      address,
+      avatar: avatar || user.avatar,
     });
 
-    if (affectedRows === 0) {
-      return res.status(404).json({
-        message: "User not found",
-        status: "error",
-      });
-    }
-
-    // Remove password before sending response
-    const userWithoutPassword = updatedUser.toJSON();
-    delete userWithoutPassword.password;
+    const userResponse = user.toJSON();
+    delete userResponse.password;
 
     return res.status(200).json({
-      message: "Profile updated successfully",
-      status: "success",
-      data: userWithoutPassword,
+      success: true,
+      message: "User updated successfully",
+      data: {
+        user: userResponse,
+      },
     });
   } catch (error) {
     handleError(error, res);
   }
 };
+

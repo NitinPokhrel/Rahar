@@ -1,10 +1,26 @@
-import  { Router } from "express";
-import { getAllCategories, getCategoryBySlug } from "../controllers/category.controller.js";
+import {Router} from 'express';
+import {
+  getCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  getCategoryBySlug
+} from '../controllers/category.controller.js';
+import upload from '../config/multer.js';
+
 
 const router = Router();
 
-router.route("/").get(getAllCategories);
-router.route("/:slug").get(getCategoryBySlug);
+router.get('/', getCategories);
+router.get('/:slug', getCategoryBySlug);
 
+// Admin-only routes
+router.post(
+  "/",
+  upload.fields([{ name: "image", maxCount: 1 }]),
+  createCategory
+);
+router.put('/:id', updateCategory);
+router.delete('/:id', deleteCategory);
 
-export default router;   
+export default router;

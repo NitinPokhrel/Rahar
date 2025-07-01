@@ -103,3 +103,5 @@ const Category = (sequelize) => {
 };
 
 export default Category;
+
+
