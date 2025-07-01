@@ -1,9 +1,22 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import adminRouter from "./routes/admin.route.js";
 import { clerkMiddleware } from "@clerk/express";
 import sequelize from "./db/db.js";
+
+// import router 
+import adminRouter from "./routes/admin.route.js";
+import userRouter from "./routes/user.route.js";
+import cartRouter from "./routes/cart.route.js";
+import categoryRouter from "./routes/category.route.js";
+import couponRouter from "./routes/coupon.route.js";
+import newsletterRouter from "./routes/newsletters.route.js"; 
+import orderRouter from "./routes/order.route.js";
+import productRouter from "./routes/product.route.js";
+import reviewRouter from "./routes/review.route.js";
+import searchRouter from "./routes/search.route.js";
+import wishlistRouter from "./routes/wishlist.route.js";
+
 
 const PORT = process.env.PORT || 8000;
 
@@ -33,7 +46,18 @@ app.get("/test", (req, res) => {
 
 
 // User routes
-app.use("/api/v1/admin", adminRouter);
+app.use("/api/v1/admins", adminRouter);
+app.use("/api/v1/carts", cartRouter);
+app.use("/api/v1/categories", categoryRouter);
+app.use("/api/v1/coupons", couponRouter);
+app.use("/api/v1/newsletters", newsletterRouter);
+app.use("/api/v1/orders", orderRouter);
+app.use("/api/v1/products", productRouter);
+app.use("/api/v1/reviews", reviewRouter);
+app.use("/api/v1/search", searchRouter);
+app.use('/api/v1/users', userRouter);
+app.use("/api/v1/wishlists", wishlistRouter);
+
 
 app.listen(PORT, () => {
   console.log(`✅ Server is running on port ${PORT}`);

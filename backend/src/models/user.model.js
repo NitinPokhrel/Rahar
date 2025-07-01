@@ -13,15 +13,31 @@ const User = (sequelize) => {
       });
     }
 
-    // Instance method to check password
     async checkPassword(password) {
       return await bcrypt.compare(password, this.password);
     }
 
-    // Instance method to hash password
     async hashPassword() {
       if (this.changed("password")) {
         this.password = await bcrypt.hash(this.password, 12);
+      }
+    }
+
+    trimFields() {
+      const fieldsToTrim = ["firstName", "lastName", "email", "phone"];
+      fieldsToTrim.forEach((field) => {
+        if (this[field] && typeof this[field] === "string") {
+          this[field] = this[field].trim();
+        }
+      });
+
+      // Optional: Trim address fields too
+      if (this.address) {
+        ["province", "city", "fullAddress"].forEach((field) => {
+          if (this.address[field] && typeof this.address[field] === "string") {
+            this.address[field] = this.address[field].trim();
+          }
+        });
       }
     }
   }
@@ -32,6 +48,14 @@ const User = (sequelize) => {
         type: DataTypes.UUID,
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
+      },
+      clerkUserId: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        unique: true,
+        validate: {
+          notEmpty: { msg: "Clerk user ID is required" },
+        },
       },
       firstName: {
         type: DataTypes.STRING(50),
@@ -59,11 +83,17 @@ const User = (sequelize) => {
         type: DataTypes.STRING(100),
         allowNull: false,
         unique: { msg: "Email already exists" },
+        set(value) {
+          if (typeof value === "string") {
+            this.setDataValue("email", value.trim().toLowerCase());
+          }
+        },
         validate: {
           isEmail: { msg: "Invalid email format" },
           notEmpty: { msg: "Email is required" },
         },
       },
+
       password: {
         type: DataTypes.STRING(255),
         allowNull: false,
@@ -117,7 +147,6 @@ const User = (sequelize) => {
         allowNull: false,
         defaultValue: [],
       },
-
       isActive: {
         type: DataTypes.BOOLEAN,
         defaultValue: true,
@@ -126,7 +155,6 @@ const User = (sequelize) => {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
       },
-
       address: {
         type: DataTypes.JSON,
         allowNull: false,
@@ -179,15 +207,12 @@ const User = (sequelize) => {
           },
         },
       },
-
-      // Profile Picture url
-
       avatar: {
         type: DataTypes.JSON,
         allowNull: true,
         validate: {
           isValidAvatar(value) {
-            if (!value) return; // allow null
+            if (!value) return;
 
             const { url, height, width, blurhash } = value;
 
@@ -205,21 +230,17 @@ const User = (sequelize) => {
           },
         },
       },
-
-      // This is commented out as we are using clerk to handle authentication and all that
-
-      // lastLoginAt: DataTypes.DATE,
-      // passwordResetToken: DataTypes.STRING,
-      // passwordResetExpires: DataTypes.DATE,
-      // emailVerificationToken: DataTypes.STRING,
     },
     {
       sequelize,
       modelName: "User",
       tableName: "users",
       timestamps: true,
-      paranoid: true, // Soft delete
+      paranoid: true,
       hooks: {
+        beforeValidate: (user) => {
+          user.trimFields();
+        },
         beforeSave: async (user) => {
           await user.hashPassword();
         },

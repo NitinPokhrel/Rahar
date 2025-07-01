@@ -1,9 +1,19 @@
-require("dotenv").config({ path: "./config.env" });
-const sharp = require("sharp");
-const fs = require("fs");
-const path = require("path");
-const { encode } = require("blurhash");
-const cloudinary = require("./cloudinary");
+import dotenv from "dotenv";
+import sharp from "sharp";
+import fs from "fs";
+import path from "path";
+import { encode } from "blurhash";
+import cloudinary from "./cloudinary.js";
+
+
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+
+// Configure dotenv
+dotenv.config({ path: "./config.env" });
 
 async function generateBlurHash(imagePath) {
   return new Promise((resolve, reject) => {
@@ -34,7 +44,7 @@ async function imageCompressor(inputImagePath) {
       .toBuffer();
     const compressedImagePath = path.join(
       __dirname,
-      "..",
+      "../..",
       "uploads",
       "compressed_image." + metadata.format
     );
@@ -51,7 +61,7 @@ async function imageCompressor(inputImagePath) {
   }
 }
 
-async function deleteImage(key) {
+export async function deleteImage(key) {
   try {
     await cloudinary.uploader.destroy(key, (error, result) => {
       if (error) {
@@ -68,7 +78,7 @@ async function deleteImage(key) {
 }
 
 // main photoWork function
-async function photoWork(photo) {
+export async function photoWork(photo) {
   try {
     const photoFile = photo;
     const compressedImage = await imageCompressor(photoFile.path);
@@ -81,9 +91,9 @@ async function photoWork(photo) {
       }
     );
 
-    const blurHash = await generateBlurHash(photoFile.path);
+    const blurhash = await generateBlurHash(photoFile.path);
     const photoObject = {
-      blurHash: blurHash,
+      blurhash: blurhash,
       secure_url: result.secure_url,
       public_id: result.public_id,
       height: compressedImage.height,
@@ -98,5 +108,3 @@ async function photoWork(photo) {
     throw new Error(error.message);
   }
 }
-
-module.exports = { photoWork, deleteImage };
