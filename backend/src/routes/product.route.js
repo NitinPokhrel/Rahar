@@ -1,17 +1,33 @@
-// routes/product.routes.js
-import { Router } from "express";
+import express from 'express';
 import {
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  getProductById,
   getAllProducts,
-  getSingleProduct,
   getFeaturedProducts,
   getRelatedProducts
-} from "../controllers/product.controller.js";
+} from '../controllers/product.controller.js';
+import  upload  from '../config/multer.js';
 
-const router = Router();
+const router = express.Router();
 
-router.route("/").get(getAllProducts);
-router.route("/featured/list").get(getFeaturedProducts);
-router.route("/:productId/related").get(getRelatedProducts);
-router.route("/:slug").get(getSingleProduct);
+// Public routes
+router.get('/', getAllProducts); 
+router.get('/featured', getFeaturedProducts); 
+router.get('/related/:productId', getRelatedProducts); 
+router.get('/:id', getProductById);
+// Admin-only routes
+router.post(
+  "/",
+  upload.fields([
+    { name: "images", maxCount: 5 },
+    
+  ]),
+  createProduct
+); 
+
+router.put('/:id', updateProduct);
+router.delete('/:id', deleteProduct); 
 
 export default router;
