@@ -20,10 +20,7 @@ router.get('/:id', getProductById);
 // Admin-only routes
 router.post(
   "/",
-  upload.fields([
-    { name: "images", maxCount: 20 },
-    
-  ]),
+  upload.any(),
   createProduct
 ); 
 

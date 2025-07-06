@@ -1,7 +1,8 @@
 // controllers/product.controller.js
-import { Product, Category, ProductVariant, Review, User } from "../models/index.model.js";
-import { Op, fn, col } from "sequelize";
+import { Product, Category, ProductVariant, Review, User, sequelize } from "../models/index.model.js";
+import { Op } from "sequelize";
 import { deleteImage, photoWork } from "../config/photoWork.js";
+
 
 
 
@@ -191,7 +192,11 @@ export const deleteProduct = async (req, res) => {
   }
 ;
 
+
+
 export const createProduct = async (req, res) => {
+  const transaction = await sequelize.transaction();
+
   try {
     const {
       name,
@@ -210,66 +215,134 @@ export const createProduct = async (req, res) => {
       tags,
       metaTitle,
       metaDescription,
+      variants, // as JSON string
     } = req.body;
 
+
     let images = [];
-  
-    if (req.files && req.files["images"] && req.files["images"].length > 0) {
-      const files = req.files["images"].slice(0, 5);
 
-      for (const file of files) {
-        const photo = await photoWork(file);
-        console.log("Uploaded image:", photo);
-        images.push({
-          url: photo.secure_url,
-          height: photo.height,
-          width: photo.width,
-          blurhash: photo.blurhash || null,
-          public_id: photo.public_id,
-        });
-      }
-      console.log("All images uploaded:", images);
-    }
-    if(!images.length) {
-      return res
-        .status(400)
-        .json({ message: "At least one image is required" });
-    }
-    
+if (req.files && req.files.length > 0) {
+  // Filter files that have fieldname 'images'
+  const imageFiles = req.files.filter(file => file.fieldname === 'images');
 
-    const product = await Product.create({
-      name,
-      slug,
-      description,
-      shortDescription,
-      sku,
-      categoryId,
-      price,
-      comparePrice,
-      costPrice,
-      stockQuantity,
-      lowStockThreshold,
-      isActive,
-      isFeatured,
-      tags,
-      metaTitle,
-      metaDescription,
-      images,
+  for (const file of imageFiles) {
+    const photo = await photoWork(file);
+    images.push({
+      url: photo.secure_url,
+      height: photo.height,
+      width: photo.width,
+      blurhash: photo.blurhash || null,
+      public_id: photo.public_id,
     });
+  }
+}
+
+if (!images.length) {
+  console.log(images, " No images found in request");
+  return res.status(400).json({ message: "At least one image is required" });
+}
+
+
+    // === Create product first
+    const product = await Product.create(
+      {
+        name,
+        slug,
+        description,
+        shortDescription,
+        sku,
+        categoryId,
+        price,
+        comparePrice,
+        costPrice,
+        stockQuantity,
+        lowStockThreshold,
+        isActive,
+        isFeatured,
+        tags,
+        metaTitle,
+        metaDescription,
+        images,
+      },
+      { transaction }
+    );
+
+    // === Handle variants if present
+    if (variants) {
+      let parsedVariants;
+
+      try {
+        parsedVariants = JSON.parse(variants);
+      } catch (err) {
+        throw new Error("Invalid JSON format in variants field.");
+      }
+
+      const variantPayloads = [];
+
+      for (const variant of parsedVariants) {
+  const {
+    sku: variantSku,
+    name,
+    price,
+    comparePrice,
+    stockQuantity,
+    attributes,
+    description,
+    isActive,
+  } = variant;
+
+  let variantImage = null;
+
+  // Find variant image file in req.files array
+  const fieldName = `variantImage_${variantSku}`;
+  const variantFile = req.files.find(file => file.fieldname === fieldName);
+
+  if (variantFile) {
+    const uploaded = await photoWork(variantFile);
+    variantImage = {
+      url: uploaded.secure_url,
+      height: uploaded.height,
+      width: uploaded.width,
+      blurhash: uploaded.blurhash || null,
+      public_id: uploaded.public_id,
+    };
+  }
+
+  variantPayloads.push({
+    productId: product.id,
+    sku: variantSku,
+    name,
+    price,
+    comparePrice,
+    stockQuantity,
+    attributes,
+    description,
+    isActive,
+    images: variantImage,
+  });
+}
+
+
+      await ProductVariant.bulkCreate(variantPayloads, { transaction });
+    }
+
+    await transaction.commit();
 
     return res.status(201).json({
-      message: " Product created successfully",
-      product,
+      message: "Product and variants created successfully",
+      productId: product.id,
     });
-
   } catch (error) {
-    console.error("Error creating product:", error);
-    res.status(500).json({
-      message: "Internal server error",
+    await transaction.rollback();
+    console.error("Error creating product with variants:", error);
+    return res.status(500).json({
+      message: "Failed to create product and variants",
       error: error.message,
     });
   }
 };
+
+
 
 
 export const getProductById = async (req, res) => {
