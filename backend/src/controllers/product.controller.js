@@ -1,37 +1,161 @@
 // controllers/product.controller.js
 import { Product, Category, ProductVariant, Review, User } from "../models/index.model.js";
 import { Op, fn, col } from "sequelize";
-import { photoWork } from "../config/photoWork.js";
+import { deleteImage, photoWork } from "../config/photoWork.js";
+
+
+
 
 export const updateProduct = async (req, res) => {
-    try {
-      const productId = req.params.id;
+  try {
+    const productId = req.params.id;
 
-      const [updatedRows] = await Product.update(req.body, {
-        where: { id: productId },
-      });
+    const {
+      name,
+      slug,
+      description,
+      shortDescription,
+      sku,
+      categoryId,
+      price,
+      comparePrice,
+      costPrice,
+      stockQuantity,
+      lowStockThreshold,
+      isActive,
+      isFeatured,
+      tags,
+      metaTitle,
+      metaDescription,
+    } = req.body;
 
-      if (updatedRows === 0) {
-        return res.status(404).json({ message: "Product not found" });
+    const imagesToKeep = req.body.imagesToKeep ? JSON.parse(req.body.imagesToKeep) : [];
+    const imagesToReplace = req.body.imagesToReplace ? JSON.parse(req.body.imagesToReplace) : [];
+
+    const product = await Product.findByPk(productId);
+    if (!product) return res.status(404).json({ message: "Product not found" });
+
+    let updatedImages = [];
+
+    // 1. Keep untouched images
+    if (Array.isArray(product.images)) {
+      for (const img of product.images) {
+        if (imagesToKeep.includes(img.public_id)) {
+          updatedImages.push(img);
+        }
       }
+    }
 
-      const updatedProduct = await Product.findByPk(productId, {
-        include: [{ model: Category, as: "category" }],
-      });
+    // 2. Replace selected images
+    if (imagesToReplace.length && req.files) {
+      for (const replacement of imagesToReplace) {
+        const { oldPublicId } = replacement;
+        const file = req.files[oldPublicId]?.[0];
 
-      return res.status(200).json({
-        message: "Product updated successfully",
-        product: updatedProduct,
-      });
-    } catch (error) {
-      console.error("Error updating product:", error);
-      res.status(500).json({
-        message: "Internal server error",
-        error: error.message,
+        if (!file) continue;
+
+        try {
+          await deleteImage(oldPublicId);
+        } catch (err) {
+          return res.status(500).json({
+            message: `Failed to delete image: ${oldPublicId}`,
+            error: err.message,
+          });
+        }
+
+        try {
+          const newPhoto = await photoWork(file);
+          updatedImages.push({
+            url: newPhoto.secure_url,
+            width: newPhoto.width,
+            height: newPhoto.height,
+            blurhash: newPhoto.blurhash || null,
+            public_id: newPhoto.public_id,
+          });
+        } catch (err) {
+          return res.status(500).json({
+            message: `Failed to upload replacement image for ${oldPublicId}`,
+            error: err.message,
+          });
+        }
+      }
+    }
+
+    // 3. Add brand new images
+    const newImages = req.files["images"] || [];
+    const remainingSlots = 5 - updatedImages.length;
+
+    for (let i = 0; i < Math.min(newImages.length, remainingSlots); i++) {
+      try {
+        const photo = await photoWork(newImages[i]);
+        updatedImages.push({
+          url: photo.secure_url,
+          width: photo.width,
+          height: photo.height,
+          blurhash: photo.blurhash || null,
+          public_id: photo.public_id,
+        });
+      } catch (err) {
+        return res.status(500).json({
+          message: `Failed to upload new image at index ${i}`,
+          error: err.message,
+        });
+      }
+    }
+
+    // Validation: must have at least one image
+    if (!updatedImages.length) {
+      return res.status(400).json({ message: "At least one image is required" });
+    }
+
+    // 4. Perform the DB update (only if all above image operations succeeded)
+    try {
+      await Product.update(
+        {
+          name,
+          slug,
+          description,
+          shortDescription,
+          sku,
+          categoryId,
+          price,
+          comparePrice,
+          costPrice,
+          stockQuantity,
+          lowStockThreshold,
+          isActive,
+          isFeatured,
+          tags,
+          metaTitle,
+          metaDescription,
+          images: updatedImages,
+        },
+        { where: { id: productId } }
+      );
+    } catch (dbError) {
+      return res.status(500).json({
+        message: "Database update failed",
+        error: dbError.message,
       });
     }
+
+    const updatedProduct = await Product.findByPk(productId, {
+      include: [{ model: Category, as: "category" }],
+    });
+
+    return res.status(200).json({
+      message: "Product updated successfully",
+      product: updatedProduct,
+    });
+  } catch (error) {
+    console.error("Unexpected error updating product:", error);
+    return res.status(500).json({
+      message: "Unexpected internal server error",
+      error: error.message,
+    });
   }
-;
+};
+
 
 export const deleteProduct = async (req, res) => {
     try {
@@ -40,6 +164,16 @@ export const deleteProduct = async (req, res) => {
       const product = await Product.findByPk(productId);
       if (!product) {
         return res.status(404).json({ message: "Product not found" });
+      }
+      // Delete associated images
+
+      if (Array.isArray(product.images)) {
+        for (const img of product.images) {
+          if (img.public_id) {
+            await deleteImage(img.public_id);
+            console.log(`Image deleted: ${img.public_id}`);
+          }
+        }
       }
 
       await product.destroy();
@@ -85,7 +219,7 @@ export const createProduct = async (req, res) => {
 
       for (const file of files) {
         const photo = await photoWork(file);
-        console.log("✅ Uploaded image:", photo);
+        console.log("Uploaded image:", photo);
         images.push({
           url: photo.secure_url,
           height: photo.height,
@@ -94,8 +228,14 @@ export const createProduct = async (req, res) => {
           public_id: photo.public_id,
         });
       }
-      console.log("✅ All images uploaded:", images);
+      console.log("All images uploaded:", images);
     }
+    if(!images.length) {
+      return res
+        .status(400)
+        .json({ message: "At least one image is required" });
+    }
+    
 
     const product = await Product.create({
       name,
@@ -130,9 +270,6 @@ export const createProduct = async (req, res) => {
     });
   }
 };
-
-
-
 
 
 export const getProductById = async (req, res) => {
@@ -295,3 +432,4 @@ export const getRelatedProducts = async (req, res) => {
     res.status(500).json({ status: "error", message: "Internal Server Error" });
   }
 };
+

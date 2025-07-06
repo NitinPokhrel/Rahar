@@ -21,13 +21,17 @@ router.get('/:id', getProductById);
 router.post(
   "/",
   upload.fields([
-    { name: "images", maxCount: 5 },
+    { name: "images", maxCount: 20 },
     
   ]),
   createProduct
 ); 
 
-router.put('/:id', updateProduct);
+router.put(
+  "/:id",
+  upload.fields([{ name: "images", maxCount: 20 }]),
+  updateProduct
+);
 router.delete('/:id', deleteProduct); 
 
 export default router;
