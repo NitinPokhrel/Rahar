@@ -4,6 +4,9 @@ import {
   blockUser,
   createUser,
   getUserProfile,
+  unblockUser,
+  updateUserAvatar,
+  updateUserPermissions,
   updateUserProfile,
 } from "../controllers/user.controller.js";
 import upload from "../config/multer.js";
@@ -21,7 +24,7 @@ const createUserExample = {
   dateOfBirth: "1990-05-15",
   gender: "male",
   role: "admin",
-  permissions: [],
+  permissions: ["manageUsers", "manageProducts", "manageOrders"],
   address: {
     province: "California",
     city: "Los Angeles",
@@ -36,6 +39,8 @@ async function authenticateUser(req, res, next) {
 
 router.use(authenticateUser);
 
+router.route("/").get(getUserProfile).patch(updateUserProfile);
+
 router
   .route("/create")
   .post(upload.fields([{ name: "avatar", maxCount: 1 }]), createUser);
@@ -46,6 +51,10 @@ router
   .patch(upload.fields([{ name: "avatar", maxCount: 1 }]), updateUserProfile)
   .delete(blockUser);
 
-router.route("/").get(getUserProfile).patch(updateUserProfile);
+router.route("/:userId/updatePermissions").patch(updateUserPermissions);
+router.route("/:userId/unblock").get(unblockUser);
+router
+  .route("/:userId/updateAvatar")
+  .patch(upload.fields([{ name: "avatar", maxCount: 1 }]), updateUserAvatar);
 
 export default router;

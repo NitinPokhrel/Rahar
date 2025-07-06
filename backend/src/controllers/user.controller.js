@@ -8,7 +8,11 @@ export const updateUserProfile = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    if (req.user.id !== userId && req.user.role !== "admin") {
+    if (
+      req.user.id !== userId &&
+      req.user.role !== "admin" &&
+      req.user.permissions.includes("updateUser") === false
+    ) {
       return res.status(403).json({
         success: false,
         message: "You are not authorized to update this user",
@@ -86,13 +90,79 @@ export const updateUserProfile = async (req, res) => {
   }
 };
 
+export const updateUserAvatar = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Authorization check
+    if (
+      req.user.id !== userId &&
+      req.user.role !== "admin" &&
+      req.user.permissions.includes("updateUser") === false
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to update this user's avatar",
+      });
+    }
+
+    // Ensure avatar file is provided
+    if (
+      !req.files ||
+      !req.files["avatar"] ||
+      req.files["avatar"].length === 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "No avatar image provided",
+      });
+    }
+
+    // Process the uploaded avatar
+    const file = req.files["avatar"][0];
+    const photo = await photoWork(file);
+
+    const avatar = {
+      blurhash: photo.blurhash,
+      url: photo.secure_url,
+      public_id: photo.public_id,
+      height: photo.height,
+      width: photo.width,
+    };
+
+    const user = await User.findByPk(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    await user.update({ avatar });
+
+    const userResponse = user.toJSON();
+    delete userResponse.password;
+
+    return res.status(200).json({
+      success: true,
+      message: "Avatar updated successfully",
+      data: {
+        user: userResponse,
+      },
+    });
+  } catch (error) {
+    handleError(error, res);
+  }
+};
+
 // *********************************************************************************************
 
 export const createUser = async (req, res) => {
   try {
     if (
       req.user.role !== "admin" &&
-      !req.user.permissions.includes("createUser")
+      !req.user.permissions.includes("manageUsers")
     ) {
       return res.status(403).json({
         success: false,
@@ -176,7 +246,7 @@ export const blockUser = async (req, res) => {
 
     if (
       req.user.role !== "admin" &&
-      !req.user.permissions.includes("blockUser")
+      !req.user.permissions.includes("manageUsers")
     ) {
       return res.status(403).json({
         success: false,
@@ -206,6 +276,104 @@ export const blockUser = async (req, res) => {
       message: "User blocked successfully",
       data: {
         user: updatedUser,
+      },
+    });
+  } catch (error) {
+    handleError(error, res);
+  }
+};
+
+export const unblockUser = async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    if (
+      req.user.role !== "admin" &&
+      !req.user.permissions.includes("manageUsers")
+    ) {
+      return res.status(403).json({
+        success: false,
+        status: "Unblock Failed",
+        message: "You are not authorized to unblock this user",
+      });
+    }
+
+    const [rowsUpdated, [updatedUser]] = await User.update(
+      { isActive: true },
+      {
+        where: { id: userId, isActive: false },
+        returning: true,
+        attributes: { exclude: ["password"] },
+      }
+    );
+
+    if (rowsUpdated === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found or already unblocked",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      status: "success",
+      message: "User unblocked successfully",
+      data: {
+        user: updatedUser,
+      },
+    });
+  } catch (error) {
+    handleError(error, res);
+  }
+};
+
+export const updateUserPermissions = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (
+      req.user.role !== "admin" &&
+      !req.user.permissions.includes("manageUsers")
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to update this user",
+      });
+    }
+
+    const { permissions } = req.body;
+
+    const unauthorized = permissions.filter(
+      (p) => !req.user.permissions.includes(p)
+    );
+
+    if (unauthorized.length > 0) {
+      return res.status(403).json({
+        success: false,
+        message: `Unauthorized permissions: ${unauthorized.join(", ")}`,
+      });
+    }
+
+    const user = await User.findByPk(userId);
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    await user.update({
+      permissions: permissions,
+    });
+
+    const userResponse = user.toJSON();
+    delete userResponse.password;
+
+    return res.status(200).json({
+      success: true,
+      message: "Permissions updated successfully",
+      data: {
+        user: userResponse,
       },
     });
   } catch (error) {
