@@ -136,12 +136,11 @@ const User = (sequelize) => {
       permissions: {
         type: DataTypes.ARRAY(
           DataTypes.ENUM(
-            "createUser",
-            "removeUser",
-            "addProduct",
-            "removeProduct",
-            "updateProduct",
-            "updateOrder"
+            "manageUsers",
+            "manageCoupons",
+            "manageProducts",
+            "manageOrders",
+            "manageStore"
           )
         ),
         allowNull: false,

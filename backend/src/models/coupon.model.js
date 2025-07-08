@@ -1,7 +1,7 @@
 // Coupon Model
 import { DataTypes, Model } from "sequelize";
 const Coupon = (sequelize) => {
-   class Coupon extends Model {
+  class Coupon extends Model {
     static associate(models) {
       Coupon.hasMany(models.Order, { foreignKey: "couponId", as: "orders" });
       Coupon.hasMany(models.CouponUsage, {

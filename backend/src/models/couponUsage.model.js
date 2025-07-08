@@ -4,8 +4,14 @@ const CouponUsage = (sequelize) => {
   class CouponUsage extends Model {
     static associate(models) {
       CouponUsage.belongsTo(models.User, { foreignKey: "userId", as: "user" });
-      CouponUsage.belongsTo(models.Coupon, { foreignKey: "couponId", as: "coupon" });
-      CouponUsage.belongsTo(models.Product, { foreignKey: "productId", as: "product" });
+      CouponUsage.belongsTo(models.Coupon, {
+        foreignKey: "couponId",
+        as: "coupon",
+      });
+      CouponUsage.belongsTo(models.Product, {
+        foreignKey: "productId",
+        as: "product",
+      });
     }
   }
 
