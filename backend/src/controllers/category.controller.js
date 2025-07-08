@@ -32,6 +32,7 @@ export const getCategories = async (req, res) => {
 
 
 export const createCategory = async (req, res) => {
+  const uploadedPublicId = null;
   try {
     const {
       name,
@@ -49,6 +50,7 @@ export const createCategory = async (req, res) => {
     if (req.files && req.files["image"] && req.files["image"].length > 0) {
       const file = req.files["image"][0];
       const photo = await photoWork(file);
+       uploadedPublicId = photo.public_id;
       if (!photo) {
         return res.status(400).json({ message: "Failed to upload image" }); 
       }
@@ -83,6 +85,14 @@ export const createCategory = async (req, res) => {
     });
 
   } catch (error) {
+    // If image upload failed, delete the uploaded image if it exists
+    if (uploadedPublicId) {
+      try {
+        await deleteImage(uploadedPublicId);
+      } catch (deleteError) {
+        console.error("Failed to delete uploaded image:", deleteError);
+      }
+    }
     console.error("Error creating category:", error);
     return res.status(500).json({
       message: "Internal server error",
@@ -93,9 +103,8 @@ export const createCategory = async (req, res) => {
 
 
 
-
-
 export const updateCategory = async (req, res) => {
+  const uploadedPublicId = null;
   try {
     const { id } = req.params;
     const updates = { ...req.body };
@@ -109,6 +118,7 @@ export const updateCategory = async (req, res) => {
     if (req.files && req.files["image"] && req.files["image"].length > 0) {
       const file = req.files["image"][0];
       const photo = await photoWork(file);
+      uploadedPublicId = photo.public_id;
       if (!photo) {
         return res.status(400).json({ message: "Failed to upload image" });
       }
@@ -141,6 +151,14 @@ export const updateCategory = async (req, res) => {
     });
 
   } catch (error) {
+  // If image upload failed, delete the uploaded image if it exists
+    if (uploadedPublicId) {
+      try {
+        await deleteImage(uploadedPublicId);
+      } catch (deleteError) {
+        console.error("Failed to delete uploaded image:", deleteError);
+      }
+    }
     console.error("Error updating category:", error);
     res.status(500).json({
       message: "Internal server error",

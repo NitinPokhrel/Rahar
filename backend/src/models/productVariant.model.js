@@ -33,7 +33,6 @@ const ProductVariant = (sequelize) => {
       },
       sku: {
         type: DataTypes.STRING(100),
-        unique: { msg: "Variant SKU must be unique" },
         validate: {
           notEmpty: { msg: "Variant SKU is required" },
         },
@@ -109,10 +108,20 @@ const ProductVariant = (sequelize) => {
       tableName: "product_variants",
       timestamps: true,
       indexes: [
-        { fields: ["productId"] },
-        { fields: ["sku"] },
-        { fields: ["isActive"] },
-        { fields: ["attributes"], using: "gin" },
+        {
+          unique: true,
+          fields: ["productId", "sku"], // enforce uniqueness per product
+        },
+        {
+          fields: ["productId"], // for faster lookup of variants by product
+        },
+        {
+          fields: ["isActive"], // to filter active/inactive variants efficiently
+        },
+        {
+          fields: ["attributes"],
+          using: "gin", // for querying/filtering JSONB attributes
+        },
       ],
     }
   );

@@ -8,9 +8,17 @@ import { deleteImage, photoWork } from "../config/photoWork.js";
 
 
 export const updateProduct = async (req, res) => {
+  const uploadedImageIds = [];
+  console.log(req.files);
   try {
     const productId = req.params.id;
+    const product = await Product.findByPk(productId);
+    
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
 
+    // Extract and validate basic product data
     const {
       name,
       slug,
@@ -30,15 +38,21 @@ export const updateProduct = async (req, res) => {
       metaDescription,
     } = req.body;
 
-    const imagesToKeep = req.body.imagesToKeep ? JSON.parse(req.body.imagesToKeep) : [];
-    const imagesToReplace = req.body.imagesToReplace ? JSON.parse(req.body.imagesToReplace) : [];
+    // Parse image configuration
+    let imagesToKeep = [];
+    let imagesToReplace = [];
+    
+    try {
+      imagesToKeep = req.body.imagesToKeep ? JSON.parse(req.body.imagesToKeep) : [];
+      imagesToReplace = req.body.imagesToReplace ? JSON.parse(req.body.imagesToReplace) : [];
+    } catch (error) {
+      return res.status(400).json({ message: "Invalid image configuration format" });
+    }
 
-    const product = await Product.findByPk(productId);
-    if (!product) return res.status(404).json({ message: "Product not found" });
-
+    // Start building the updated images array
     let updatedImages = [];
 
-    // 1. Keep untouched images
+    // 1. Keep existing images that are marked to keep
     if (Array.isArray(product.images)) {
       for (const img of product.images) {
         if (imagesToKeep.includes(img.public_id)) {
@@ -48,98 +62,136 @@ export const updateProduct = async (req, res) => {
     }
 
     // 2. Replace selected images
-    if (imagesToReplace.length && req.files) {
+    if (imagesToReplace.length > 0 && req.files) {
       for (const replacement of imagesToReplace) {
         const { oldPublicId } = replacement;
-        const file = req.files[oldPublicId]?.[0];
+        
+        // Find the replacement file (fieldname should match oldPublicId)
+        const replacementFile = req.files.find(f => f.fieldname === oldPublicId);
+        console.log("Replacement file:", replacementFile);
+        
+        if (replacementFile) {
+          try {
+            // Upload new image first
+            const newPhoto = await photoWork(replacementFile);
+            uploadedImageIds.push(newPhoto.public_id);
 
-        if (!file) continue;
+            // Delete old image after successful upload
+            await deleteImage(oldPublicId);
+            console.log(`Replaced image: ${oldPublicId} -> ${newPhoto.public_id}`);
 
-        try {
-          await deleteImage(oldPublicId);
-        } catch (err) {
-          return res.status(500).json({
-            message: `Failed to delete image: ${oldPublicId}`,
-            error: err.message,
-          });
+            // Add new image to the array
+            updatedImages.push({
+              url: newPhoto.secure_url,
+              width: newPhoto.width,
+              height: newPhoto.height,
+              blurhash: newPhoto.blurhash || null,
+              public_id: newPhoto.public_id,
+            });
+          } catch (error) {
+            // Cleanup uploaded images on error
+            for (const publicId of uploadedImageIds) {
+              try {
+                await deleteImage(publicId);
+              } catch (cleanupError) {
+                console.warn(`Failed to cleanup image ${publicId}:`, cleanupError.message);
+              }
+            }
+            return res.status(500).json({
+              message: `Failed to replace image ${oldPublicId}`,
+              error: error.message,
+            });
+          }
         }
+      }
+    }
 
+    // 3. Add new images (fieldname = "images")
+    if (req.files && req.files.images) {
+      const newImages = req.files.images;
+      
+      
+      for (let i = 0; i < newImages.length; i++) {
         try {
-          const newPhoto = await photoWork(file);
+          const photo = await photoWork(newImages[i]);
+          uploadedImageIds.push(photo.public_id);
+
           updatedImages.push({
-            url: newPhoto.secure_url,
-            width: newPhoto.width,
-            height: newPhoto.height,
-            blurhash: newPhoto.blurhash || null,
-            public_id: newPhoto.public_id,
+            url: photo.secure_url,
+            width: photo.width,
+            height: photo.height,
+            blurhash: photo.blurhash || null,
+            public_id: photo.public_id,
           });
-        } catch (err) {
+        } catch (error) {
+          // Cleanup uploaded images on error
+          for (const publicId of uploadedImageIds) {
+            try {
+              await deleteImage(publicId);
+            } catch (cleanupError) {
+              console.warn(`Failed to cleanup image ${publicId}:`, cleanupError.message);
+            }
+          }
           return res.status(500).json({
-            message: `Failed to upload replacement image for ${oldPublicId}`,
-            error: err.message,
+            message: `Failed to upload new image at index ${i}`,
+            error: error.message,
           });
         }
       }
     }
 
-    // 3. Add brand new images
-    const newImages = req.files["images"] || [];
-    const remainingSlots = 5 - updatedImages.length;
-
-    for (let i = 0; i < Math.min(newImages.length, remainingSlots); i++) {
-      try {
-        const photo = await photoWork(newImages[i]);
-        updatedImages.push({
-          url: photo.secure_url,
-          width: photo.width,
-          height: photo.height,
-          blurhash: photo.blurhash || null,
-          public_id: photo.public_id,
-        });
-      } catch (err) {
-        return res.status(500).json({
-          message: `Failed to upload new image at index ${i}`,
-          error: err.message,
-        });
+    // Validate that we have at least one image
+    if (updatedImages.length === 0) {
+      // Cleanup any uploaded images
+      for (const publicId of uploadedImageIds) {
+        try {
+          await deleteImage(publicId);
+        } catch (cleanupError) {
+          console.warn(`Failed to cleanup image ${publicId}:`, cleanupError.message);
+        }
       }
-    }
-
-    // Validation: must have at least one image
-    if (!updatedImages.length) {
       return res.status(400).json({ message: "At least one image is required" });
     }
 
-    // 4. Perform the DB update (only if all above image operations succeeded)
-    try {
-      await Product.update(
-        {
-          name,
-          slug,
-          description,
-          shortDescription,
-          sku,
-          categoryId,
-          price,
-          comparePrice,
-          costPrice,
-          stockQuantity,
-          lowStockThreshold,
-          isActive,
-          isFeatured,
-          tags,
-          metaTitle,
-          metaDescription,
-          images: updatedImages,
-        },
-        { where: { id: productId } }
-      );
-    } catch (dbError) {
-      return res.status(500).json({
-        message: "Database update failed",
-        error: dbError.message,
-      });
+    // Prepare update data with type conversion
+    const updateData = {
+      name: name?.trim(),
+      slug,
+      description,
+      shortDescription,
+      sku,
+      categoryId,
+      price: parseFloat(price) || 0,
+      comparePrice: parseFloat(comparePrice) || 0,
+      costPrice: parseFloat(costPrice) || 0,
+      stockQuantity: parseInt(stockQuantity) || 0,
+      lowStockThreshold: parseInt(lowStockThreshold) || 0,
+      isActive: Boolean(isActive),
+      isFeatured: Boolean(isFeatured),
+      tags: Array.isArray(tags) ? tags : (tags ? [tags] : []),
+      metaTitle,
+      metaDescription,
+      images: updatedImages,
+    };
+
+    // Update product in database
+    const updateResult = await Product.update(updateData, {
+      where: { id: productId },
+    });
+
+    if (updateResult[0] === 0) {
+      // Cleanup uploaded images if database update failed
+      for (const publicId of uploadedImageIds) {
+        try {
+          await deleteImage(publicId);
+        } catch (cleanupError) {
+          console.warn(`Failed to cleanup image ${publicId}:`, cleanupError.message);
+        }
+      }
+      return res.status(500).json({ message: "Product update failed - no rows affected" });
     }
 
+    // Fetch updated product with relations
     const updatedProduct = await Product.findByPk(productId, {
       include: [{ model: Category, as: "category" }],
     });
@@ -148,11 +200,22 @@ export const updateProduct = async (req, res) => {
       message: "Product updated successfully",
       product: updatedProduct,
     });
+
   } catch (error) {
-    console.error("Unexpected error updating product:", error);
+    // Cleanup uploaded images on any unexpected error
+    for (const publicId of uploadedImageIds) {
+      try {
+        await deleteImage(publicId);
+      } catch (cleanupError) {
+        console.warn(`Failed to cleanup image ${publicId}:`, cleanupError.message);
+      }
+    }
+    
+    console.error("Error updating product:", error);
+    
     return res.status(500).json({
-      message: "Unexpected internal server error",
-      error: error.message,
+      message: "Internal server error",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };
@@ -193,9 +256,11 @@ export const deleteProduct = async (req, res) => {
 ;
 
 
-
 export const createProduct = async (req, res) => {
   const transaction = await sequelize.transaction();
+
+  // Track uploaded image public_ids for cleanup if needed
+  const uploadedPublicIds = [];
 
   try {
     const {
@@ -215,59 +280,54 @@ export const createProduct = async (req, res) => {
       tags,
       metaTitle,
       metaDescription,
-      variants, // as JSON string
+      variants, // JSON string
     } = req.body;
-
 
     let images = [];
 
-if (req.files && req.files.length > 0) {
-  // Filter files that have fieldname 'images'
-  const imageFiles = req.files.filter(file => file.fieldname === 'images');
+    // === Handle main product images ===
+    if (req.files && req.files.length > 0) {
+      const imageFiles = req.files.filter(file => file.fieldname === 'images');
 
-  for (const file of imageFiles) {
-    const photo = await photoWork(file);
-    images.push({
-      url: photo.secure_url,
-      height: photo.height,
-      width: photo.width,
-      blurhash: photo.blurhash || null,
-      public_id: photo.public_id,
-    });
-  }
-}
+      for (const file of imageFiles) {
+        const photo = await photoWork(file);
+        uploadedPublicIds.push(photo.public_id); // Track for deletion
+        images.push({
+          url: photo.secure_url,
+          height: photo.height,
+          width: photo.width,
+          blurhash: photo.blurhash || null,
+          public_id: photo.public_id,
+        });
+      }
+    }
 
-if (!images.length) {
-  console.log(images, " No images found in request");
-  return res.status(400).json({ message: "At least one image is required" });
-}
+    if (!images.length) {
+      return res.status(400).json({ message: "At least one image is required" });
+    }
 
+    // === Create product
+    const product = await Product.create({
+      name,
+      slug,
+      description,
+      shortDescription,
+      sku,
+      categoryId,
+      price,
+      comparePrice,
+      costPrice,
+      stockQuantity,
+      lowStockThreshold,
+      isActive,
+      isFeatured,
+      tags,
+      metaTitle,
+      metaDescription,
+      images,
+    }, { transaction });
 
-    // === Create product first
-    const product = await Product.create(
-      {
-        name,
-        slug,
-        description,
-        shortDescription,
-        sku,
-        categoryId,
-        price,
-        comparePrice,
-        costPrice,
-        stockQuantity,
-        lowStockThreshold,
-        isActive,
-        isFeatured,
-        tags,
-        metaTitle,
-        metaDescription,
-        images,
-      },
-      { transaction }
-    );
-
-    // === Handle variants if present
+    // === Handle variants if provided
     if (variants) {
       let parsedVariants;
 
@@ -280,48 +340,46 @@ if (!images.length) {
       const variantPayloads = [];
 
       for (const variant of parsedVariants) {
-  const {
-    sku: variantSku,
-    name,
-    price,
-    comparePrice,
-    stockQuantity,
-    attributes,
-    description,
-    isActive,
-  } = variant;
+        const {
+          sku: variantSku,
+          name,
+          price,
+          comparePrice,
+          stockQuantity,
+          attributes,
+          description,
+          isActive,
+        } = variant;
 
-  let variantImage = null;
+        let variantImage = null;
+        const fieldName = `variantImage_${variantSku}`;
+        const variantFile = req.files.find(file => file.fieldname === fieldName);
 
-  // Find variant image file in req.files array
-  const fieldName = `variantImage_${variantSku}`;
-  const variantFile = req.files.find(file => file.fieldname === fieldName);
+        if (variantFile) {
+          const uploaded = await photoWork(variantFile);
+          uploadedPublicIds.push(uploaded.public_id); // Track for cleanup
+          variantImage = {
+            url: uploaded.secure_url,
+            height: uploaded.height,
+            width: uploaded.width,
+            blurhash: uploaded.blurhash || null,
+            public_id: uploaded.public_id,
+          };
+        }
 
-  if (variantFile) {
-    const uploaded = await photoWork(variantFile);
-    variantImage = {
-      url: uploaded.secure_url,
-      height: uploaded.height,
-      width: uploaded.width,
-      blurhash: uploaded.blurhash || null,
-      public_id: uploaded.public_id,
-    };
-  }
-
-  variantPayloads.push({
-    productId: product.id,
-    sku: variantSku,
-    name,
-    price,
-    comparePrice,
-    stockQuantity,
-    attributes,
-    description,
-    isActive,
-    images: variantImage,
-  });
-}
-
+        variantPayloads.push({
+          productId: product.id,
+          sku: variantSku,
+          name,
+          price,
+          comparePrice,
+          stockQuantity,
+          attributes,
+          description,
+          isActive,
+          images: variantImage,
+        });
+      }
 
       await ProductVariant.bulkCreate(variantPayloads, { transaction });
     }
@@ -334,15 +392,26 @@ if (!images.length) {
     });
   } catch (error) {
     await transaction.rollback();
+
     console.error("Error creating product with variants:", error);
+
+    // Clean up uploaded images from Cloudinary
+    if (uploadedPublicIds.length > 0) {
+      for (const publicId of uploadedPublicIds) {
+        try {
+          await deleteImage(publicId);
+        } catch (cleanupError) {
+          console.error(`Failed to delete image with public_id ${publicId}:`, cleanupError);
+        }
+      }
+    }
+
     return res.status(500).json({
       message: "Failed to create product and variants",
       error: error.message,
     });
   }
 };
-
-
 
 
 export const getProductById = async (req, res) => {
