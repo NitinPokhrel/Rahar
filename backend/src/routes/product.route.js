@@ -20,14 +20,15 @@ router.get('/:id', getProductById);
 // Admin-only routes
 router.post(
   "/",
-  upload.fields([
-    { name: "images", maxCount: 5 },
-    
-  ]),
+  upload.any(),
   createProduct
 ); 
 
-router.put('/:id', updateProduct);
+router.put(
+  "/:id",
+  upload.fields([{ name: "images", maxCount: 20 }]),
+  updateProduct
+);
 router.delete('/:id', deleteProduct); 
 
 export default router;

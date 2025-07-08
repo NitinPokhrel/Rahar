@@ -49,6 +49,9 @@ export const createCategory = async (req, res) => {
     if (req.files && req.files["image"] && req.files["image"].length > 0) {
       const file = req.files["image"][0];
       const photo = await photoWork(file);
+      if (!photo) {
+        return res.status(400).json({ message: "Failed to upload image" }); 
+      }
       
       image = {
         url: photo.secure_url,
@@ -58,7 +61,7 @@ export const createCategory = async (req, res) => {
         blurhash: photo.blurhash || null,
       };
 
-      console.log("✅ Uploaded image:", photo);
+      console.log("Uploaded image:", photo);
     }
 
     // Create category
@@ -72,6 +75,7 @@ export const createCategory = async (req, res) => {
       metaDescription,
       image, 
     });
+    
 
     return res.status(201).json({
       message: "Category created successfully",
@@ -105,6 +109,9 @@ export const updateCategory = async (req, res) => {
     if (req.files && req.files["image"] && req.files["image"].length > 0) {
       const file = req.files["image"][0];
       const photo = await photoWork(file);
+      if (!photo) {
+        return res.status(400).json({ message: "Failed to upload image" });
+      }
       updates.image = {
         url: photo.secure_url,
         public_id: photo.public_id,
@@ -114,8 +121,14 @@ export const updateCategory = async (req, res) => {
       };
       // delete previous image 
       if (category.image && category.image.public_id) {
-        await deleteImage(category.image.public_id);
-        console.log("✅ Deleted old image:", category.image);
+        const deletedImage = await deleteImage(category.image.public_id);
+        if(!deletedImage) {
+          console.error("Failed to delete old image:", category.image.public_id);
+          return res.status(500).json({
+            message: "Failed to delete old image",
+          });
+        }
+        console.log("Deleted old image:", category.image);
       }
     }
 
@@ -123,12 +136,12 @@ export const updateCategory = async (req, res) => {
     await category.update(updates);
 
     return res.status(200).json({
-      message: "✅ Category updated successfully",
+      message: "Category updated successfully",
       category,
     });
 
   } catch (error) {
-    console.error("💥 Error updating category:", error);
+    console.error("Error updating category:", error);
     res.status(500).json({
       message: "Internal server error",
       error: error.message,
@@ -206,4 +219,6 @@ export const getCategoryBySlug =  async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+
 

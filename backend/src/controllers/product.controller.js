@@ -1,37 +1,162 @@
 // controllers/product.controller.js
-import { Product, Category, ProductVariant, Review, User } from "../models/index.model.js";
-import { Op, fn, col } from "sequelize";
-import { photoWork } from "../config/photoWork.js";
+import { Product, Category, ProductVariant, Review, User, sequelize } from "../models/index.model.js";
+import { Op } from "sequelize";
+import { deleteImage, photoWork } from "../config/photoWork.js";
+
+
+
+
 
 export const updateProduct = async (req, res) => {
-    try {
-      const productId = req.params.id;
+  try {
+    const productId = req.params.id;
 
-      const [updatedRows] = await Product.update(req.body, {
-        where: { id: productId },
-      });
+    const {
+      name,
+      slug,
+      description,
+      shortDescription,
+      sku,
+      categoryId,
+      price,
+      comparePrice,
+      costPrice,
+      stockQuantity,
+      lowStockThreshold,
+      isActive,
+      isFeatured,
+      tags,
+      metaTitle,
+      metaDescription,
+    } = req.body;
 
-      if (updatedRows === 0) {
-        return res.status(404).json({ message: "Product not found" });
+    const imagesToKeep = req.body.imagesToKeep ? JSON.parse(req.body.imagesToKeep) : [];
+    const imagesToReplace = req.body.imagesToReplace ? JSON.parse(req.body.imagesToReplace) : [];
+
+    const product = await Product.findByPk(productId);
+    if (!product) return res.status(404).json({ message: "Product not found" });
+
+    let updatedImages = [];
+
+    // 1. Keep untouched images
+    if (Array.isArray(product.images)) {
+      for (const img of product.images) {
+        if (imagesToKeep.includes(img.public_id)) {
+          updatedImages.push(img);
+        }
       }
+    }
 
-      const updatedProduct = await Product.findByPk(productId, {
-        include: [{ model: Category, as: "category" }],
-      });
+    // 2. Replace selected images
+    if (imagesToReplace.length && req.files) {
+      for (const replacement of imagesToReplace) {
+        const { oldPublicId } = replacement;
+        const file = req.files[oldPublicId]?.[0];
 
-      return res.status(200).json({
-        message: "Product updated successfully",
-        product: updatedProduct,
-      });
-    } catch (error) {
-      console.error("Error updating product:", error);
-      res.status(500).json({
-        message: "Internal server error",
-        error: error.message,
+        if (!file) continue;
+
+        try {
+          await deleteImage(oldPublicId);
+        } catch (err) {
+          return res.status(500).json({
+            message: `Failed to delete image: ${oldPublicId}`,
+            error: err.message,
+          });
+        }
+
+        try {
+          const newPhoto = await photoWork(file);
+          updatedImages.push({
+            url: newPhoto.secure_url,
+            width: newPhoto.width,
+            height: newPhoto.height,
+            blurhash: newPhoto.blurhash || null,
+            public_id: newPhoto.public_id,
+          });
+        } catch (err) {
+          return res.status(500).json({
+            message: `Failed to upload replacement image for ${oldPublicId}`,
+            error: err.message,
+          });
+        }
+      }
+    }
+
+    // 3. Add brand new images
+    const newImages = req.files["images"] || [];
+    const remainingSlots = 5 - updatedImages.length;
+
+    for (let i = 0; i < Math.min(newImages.length, remainingSlots); i++) {
+      try {
+        const photo = await photoWork(newImages[i]);
+        updatedImages.push({
+          url: photo.secure_url,
+          width: photo.width,
+          height: photo.height,
+          blurhash: photo.blurhash || null,
+          public_id: photo.public_id,
+        });
+      } catch (err) {
+        return res.status(500).json({
+          message: `Failed to upload new image at index ${i}`,
+          error: err.message,
+        });
+      }
+    }
+
+    // Validation: must have at least one image
+    if (!updatedImages.length) {
+      return res.status(400).json({ message: "At least one image is required" });
+    }
+
+    // 4. Perform the DB update (only if all above image operations succeeded)
+    try {
+      await Product.update(
+        {
+          name,
+          slug,
+          description,
+          shortDescription,
+          sku,
+          categoryId,
+          price,
+          comparePrice,
+          costPrice,
+          stockQuantity,
+          lowStockThreshold,
+          isActive,
+          isFeatured,
+          tags,
+          metaTitle,
+          metaDescription,
+          images: updatedImages,
+        },
+        { where: { id: productId } }
+      );
+    } catch (dbError) {
+      return res.status(500).json({
+        message: "Database update failed",
+        error: dbError.message,
       });
     }
+
+    const updatedProduct = await Product.findByPk(productId, {
+      include: [{ model: Category, as: "category" }],
+    });
+
+    return res.status(200).json({
+      message: "Product updated successfully",
+      product: updatedProduct,
+    });
+  } catch (error) {
+    console.error("Unexpected error updating product:", error);
+    return res.status(500).json({
+      message: "Unexpected internal server error",
+      error: error.message,
+    });
   }
-;
+};
+
 
 export const deleteProduct = async (req, res) => {
     try {
@@ -40,6 +165,16 @@ export const deleteProduct = async (req, res) => {
       const product = await Product.findByPk(productId);
       if (!product) {
         return res.status(404).json({ message: "Product not found" });
+      }
+      // Delete associated images
+
+      if (Array.isArray(product.images)) {
+        for (const img of product.images) {
+          if (img.public_id) {
+            await deleteImage(img.public_id);
+            console.log(`Image deleted: ${img.public_id}`);
+          }
+        }
       }
 
       await product.destroy();
@@ -57,7 +192,11 @@ export const deleteProduct = async (req, res) => {
   }
 ;
 
+
+
 export const createProduct = async (req, res) => {
+  const transaction = await sequelize.transaction();
+
   try {
     const {
       name,
@@ -76,61 +215,132 @@ export const createProduct = async (req, res) => {
       tags,
       metaTitle,
       metaDescription,
+      variants, // as JSON string
     } = req.body;
 
-    let images = [];
-  
-    if (req.files && req.files["images"] && req.files["images"].length > 0) {
-      const files = req.files["images"].slice(0, 5);
 
-      for (const file of files) {
-        const photo = await photoWork(file);
-        console.log("✅ Uploaded image:", photo);
-        images.push({
-          url: photo.secure_url,
-          height: photo.height,
-          width: photo.width,
-          blurhash: photo.blurhash || null,
-          public_id: photo.public_id,
-        });
+    let images = [];
+
+if (req.files && req.files.length > 0) {
+  // Filter files that have fieldname 'images'
+  const imageFiles = req.files.filter(file => file.fieldname === 'images');
+
+  for (const file of imageFiles) {
+    const photo = await photoWork(file);
+    images.push({
+      url: photo.secure_url,
+      height: photo.height,
+      width: photo.width,
+      blurhash: photo.blurhash || null,
+      public_id: photo.public_id,
+    });
+  }
+}
+
+if (!images.length) {
+  console.log(images, " No images found in request");
+  return res.status(400).json({ message: "At least one image is required" });
+}
+
+
+    // === Create product first
+    const product = await Product.create(
+      {
+        name,
+        slug,
+        description,
+        shortDescription,
+        sku,
+        categoryId,
+        price,
+        comparePrice,
+        costPrice,
+        stockQuantity,
+        lowStockThreshold,
+        isActive,
+        isFeatured,
+        tags,
+        metaTitle,
+        metaDescription,
+        images,
+      },
+      { transaction }
+    );
+
+    // === Handle variants if present
+    if (variants) {
+      let parsedVariants;
+
+      try {
+        parsedVariants = JSON.parse(variants);
+      } catch (err) {
+        throw new Error("Invalid JSON format in variants field.");
       }
-      console.log("✅ All images uploaded:", images);
+
+      const variantPayloads = [];
+
+      for (const variant of parsedVariants) {
+  const {
+    sku: variantSku,
+    name,
+    price,
+    comparePrice,
+    stockQuantity,
+    attributes,
+    description,
+    isActive,
+  } = variant;
+
+  let variantImage = null;
+
+  // Find variant image file in req.files array
+  const fieldName = `variantImage_${variantSku}`;
+  const variantFile = req.files.find(file => file.fieldname === fieldName);
+
+  if (variantFile) {
+    const uploaded = await photoWork(variantFile);
+    variantImage = {
+      url: uploaded.secure_url,
+      height: uploaded.height,
+      width: uploaded.width,
+      blurhash: uploaded.blurhash || null,
+      public_id: uploaded.public_id,
+    };
+  }
+
+  variantPayloads.push({
+    productId: product.id,
+    sku: variantSku,
+    name,
+    price,
+    comparePrice,
+    stockQuantity,
+    attributes,
+    description,
+    isActive,
+    images: variantImage,
+  });
+}
+
+
+      await ProductVariant.bulkCreate(variantPayloads, { transaction });
     }
 
-    const product = await Product.create({
-      name,
-      slug,
-      description,
-      shortDescription,
-      sku,
-      categoryId,
-      price,
-      comparePrice,
-      costPrice,
-      stockQuantity,
-      lowStockThreshold,
-      isActive,
-      isFeatured,
-      tags,
-      metaTitle,
-      metaDescription,
-      images,
-    });
+    await transaction.commit();
 
     return res.status(201).json({
-      message: " Product created successfully",
-      product,
+      message: "Product and variants created successfully",
+      productId: product.id,
     });
-
   } catch (error) {
-    console.error("Error creating product:", error);
-    res.status(500).json({
-      message: "Internal server error",
+    await transaction.rollback();
+    console.error("Error creating product with variants:", error);
+    return res.status(500).json({
+      message: "Failed to create product and variants",
       error: error.message,
     });
   }
 };
-
 
 
 
@@ -295,3 +505,4 @@ export const getRelatedProducts = async (req, res) => {
     res.status(500).json({ status: "error", message: "Internal Server Error" });
   }
 };
+
