@@ -1,11 +1,6 @@
-
-
 import { deleteImage, photoWork } from "../config/photoWork.js";
 import { Category } from "../models/index.model.js";
 import { Product, ProductVariant } from "../models/index.model.js";
-
-
-
 
 export const getCategories = async (req, res) => {
   try {
@@ -30,6 +25,53 @@ export const getCategories = async (req, res) => {
   }
 };
 
+export const getCategoryBySlug = async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+    console.log("Fetching category with slug:", slug);
+    const category = await Category.findOne({
+      where: { slug, isActive: true },
+      include: [
+        {
+          model: Product,
+          as: "products",
+          where: { isActive: true },
+          required: false,
+          limit: parseInt(limit),
+          offset: parseInt(offset),
+          include: [
+            {
+              model: ProductVariant,
+              as: "variants",
+              where: { isActive: true },
+              required: false,
+            },
+          ],
+        },
+      ],
+    });
+
+    if (!category) {
+      return res.status(404).json({
+        message: "Category not found",
+        status: "error",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Category fetched successfully",
+      status: "success",
+      data: category,
+    });
+  } catch (error) {
+    console.error("Error fetching category:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+// ****************************   -------------------     **************************
 
 export const createCategory = async (req, res) => {
   try {
@@ -50,9 +92,9 @@ export const createCategory = async (req, res) => {
       const file = req.files["image"][0];
       const photo = await photoWork(file);
       if (!photo) {
-        return res.status(400).json({ message: "Failed to upload image" }); 
+        return res.status(400).json({ message: "Failed to upload image" });
       }
-      
+
       image = {
         url: photo.secure_url,
         public_id: photo.public_id,
@@ -73,15 +115,13 @@ export const createCategory = async (req, res) => {
       sortOrder,
       metaTitle,
       metaDescription,
-      image, 
+      image,
     });
-    
 
     return res.status(201).json({
       message: "Category created successfully",
       category,
     });
-
   } catch (error) {
     console.error("Error creating category:", error);
     return res.status(500).json({
@@ -90,10 +130,6 @@ export const createCategory = async (req, res) => {
     });
   }
 };
-
-
-
-
 
 export const updateCategory = async (req, res) => {
   try {
@@ -119,11 +155,14 @@ export const updateCategory = async (req, res) => {
         width: photo.width,
         blurhash: photo.blurhash || null,
       };
-      // delete previous image 
+      // delete previous image
       if (category.image && category.image.public_id) {
         const deletedImage = await deleteImage(category.image.public_id);
-        if(!deletedImage) {
-          console.error("Failed to delete old image:", category.image.public_id);
+        if (!deletedImage) {
+          console.error(
+            "Failed to delete old image:",
+            category.image.public_id
+          );
           return res.status(500).json({
             message: "Failed to delete old image",
           });
@@ -139,7 +178,6 @@ export const updateCategory = async (req, res) => {
       message: "Category updated successfully",
       category,
     });
-
   } catch (error) {
     console.error("Error updating category:", error);
     res.status(500).json({
@@ -149,9 +187,7 @@ export const updateCategory = async (req, res) => {
   }
 };
 
-
-
-export const deleteCategory =  async (req, res) => {
+export const deleteCategory = async (req, res) => {
   try {
     const categoryId = req.params.id;
 
@@ -173,52 +209,3 @@ export const deleteCategory =  async (req, res) => {
     });
   }
 };
-
-export const getCategoryBySlug =  async (req, res) => {
-  try {
-    const { slug } = req.params;
-    const { page = 1, limit = 20 } = req.query;
-    const offset = (page - 1) * limit;
-    console.log("Fetching category with slug:", slug);
-    const category = await Category.findOne({
-      where: { slug, isActive: true },
-      include: [
-        {
-          model: Product,
-          as: "products",
-          where: { isActive: true },
-          required: false,
-          limit: parseInt(limit),
-          offset: parseInt(offset),
-          include: [
-            {
-              model: ProductVariant,
-              as: "variants",
-              where: { isActive: true },
-              required: false
-            }
-          ]
-        }
-      ]
-    });
-
-    if (!category) {
-      return res.status(404).json({
-        message: "Category not found",
-        status: "error"
-      });
-    }
-
-    return res.status(200).json({
-      message: "Category fetched successfully",
-      status: "success",
-      data: category
-    });
-  } catch (error) {
-    console.error("Error fetching category:", error);
-    res.status(500).json({ message: "Internal Server Error" });
-  }
-};
-
-
-

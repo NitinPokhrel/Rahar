@@ -4,26 +4,24 @@ import cookieParser from "cookie-parser";
 import { clerkMiddleware } from "@clerk/express";
 import sequelize from "./db/db.js";
 
-// import router 
+// import router
 import adminRouter from "./routes/admin.route.js";
 import userRouter from "./routes/user.route.js";
 import cartRouter from "./routes/cart.route.js";
 import categoryRouter from "./routes/category.route.js";
 import couponRouter from "./routes/coupon.route.js";
-import newsletterRouter from "./routes/newsletters.route.js"; 
+import newsletterRouter from "./routes/newsletters.route.js";
 import orderRouter from "./routes/order.route.js";
 import productRouter from "./routes/product.route.js";
 import reviewRouter from "./routes/review.route.js";
 import searchRouter from "./routes/search.route.js";
 import wishlistRouter from "./routes/wishlist.route.js";
 
-
 const PORT = process.env.PORT || 8000;
 
 const app = express();
 
 // CORS configuration
-
 app.use(
   cors({
     origin: process.env.CORS,
@@ -44,8 +42,7 @@ app.get("/test", (req, res) => {
   });
 });
 
-
-// User routes
+// API routes
 app.use("/api/v1/admins", adminRouter);
 app.use("/api/v1/carts", cartRouter);
 app.use("/api/v1/categories", categoryRouter);
@@ -55,32 +52,25 @@ app.use("/api/v1/orders", orderRouter);
 app.use("/api/v1/products", productRouter);
 app.use("/api/v1/reviews", reviewRouter);
 app.use("/api/v1/search", searchRouter);
-app.use('/api/v1/users', userRouter);
+app.use("/api/v1/users", userRouter);
 app.use("/api/v1/wishlists", wishlistRouter);
 
-
-app.listen(PORT, () => {
-  console.log(`✅ Server is running on port ${PORT}`);
-});
-
+// Database connection and server startup
 sequelize
   .sync({ force: false })
   .then(() => {
-    console.log("table synced successfully.");
+    console.log("✅ Database tables synced successfully.");
+    return sequelize.authenticate();
   })
-  .catch((err) => {
-    console.error("Failed to sync table:", err);
-  });
-
-sequelize
-  .authenticate()
   .then(() => {
-    app.listen(8000 || process.env.PORT, () => {
-      console.log("server is running on port " + process.env.PORT);
+    console.log("✅ Database connection authenticated successfully.");
+    app.listen(PORT, () => {
+      console.log(`✅ Server is running on port ${PORT}`);
     });
   })
-  .catch((error) => {
-    console.log("failed to connect database", error);
+  .catch((err) => {
+    console.error("❌ Database error:", err);
+    process.exit(1);
   });
 
 export { app };

@@ -3,12 +3,30 @@ import { DataTypes, Model } from "sequelize";
 const Product = (sequelize) => {
   class Product extends Model {
     static associate(models) {
-      Product.belongsTo(models.Category, { foreignKey: "categoryId", as: "category" });
-      Product.hasMany(models.ProductVariant, { foreignKey: "productId", as: "variants" });
-      Product.hasMany(models.Review, { foreignKey: "productId", as: "reviews" });
-      Product.hasMany(models.Cart, { foreignKey: "productId", as: "cartItems" });
-      Product.hasMany(models.OrderItem, { foreignKey: "productId", as: "orderItems" });
-      Product.hasMany(models.Wishlist, { foreignKey: "productId", as: "wishlistItems" });
+      Product.belongsTo(models.Category, {
+        foreignKey: "categoryId",
+        as: "category",
+      });
+      Product.hasMany(models.ProductVariant, {
+        foreignKey: "productId",
+        as: "variants",
+      });
+      Product.hasMany(models.Review, {
+        foreignKey: "productId",
+        as: "reviews",
+      });
+      Product.hasMany(models.Cart, {
+        foreignKey: "productId",
+        as: "cartItems",
+      });
+      Product.hasMany(models.OrderItem, {
+        foreignKey: "productId",
+        as: "orderItems",
+      });
+      Product.hasMany(models.Wishlist, {
+        foreignKey: "productId",
+        as: "wishlistItems",
+      });
     }
   }
 
@@ -176,22 +194,38 @@ const Product = (sequelize) => {
 
   // Hook to validate and parse fields before saving
   Product.beforeValidate((product) => {
- 
+    // Trim string fields
+    const stringFields = ['name', 'slug', 'description', 'shortDescription', 'sku', 'metaTitle', 'metaDescription'];
+    stringFields.forEach((field) => {
+      if (product[field] && typeof product[field] === 'string') {
+        product.setDataValue(field, product[field].trim());
+      }
+    });
 
+    // Parse numeric fields
     ["price", "comparePrice", "costPrice"].forEach((field) => {
-      if (product[field] !== undefined && product[field] !== null && typeof product[field] === "string") {
+      if (
+        product[field] !== undefined &&
+        product[field] !== null &&
+        typeof product[field] === "string"
+      ) {
         const parsed = parseFloat(product[field]);
         product.setDataValue(field, isNaN(parsed) ? null : parsed);
       }
     });
 
     ["stockQuantity", "lowStockThreshold"].forEach((field) => {
-      if (product[field] !== undefined && product[field] !== null && typeof product[field] === "string") {
+      if (
+        product[field] !== undefined &&
+        product[field] !== null &&
+        typeof product[field] === "string"
+      ) {
         const parsed = parseInt(product[field], 10);
         product.setDataValue(field, isNaN(parsed) ? null : parsed);
       }
     });
 
+    // Parse boolean fields
     if (typeof product.isActive === "string") {
       product.setDataValue("isActive", product.isActive === "true");
     }
@@ -200,8 +234,12 @@ const Product = (sequelize) => {
       product.setDataValue("isFeatured", product.isFeatured === "true");
     }
 
+    // Parse and trim tags array
     if (typeof product.tags === "string") {
-      product.setDataValue("tags", product.tags.split(",").map((t) => t.trim()));
+      product.setDataValue(
+        "tags",
+        product.tags.split(",").map((t) => t.trim())
+      );
     }
   });
 
