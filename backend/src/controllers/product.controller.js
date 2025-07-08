@@ -47,7 +47,7 @@ export const getAllProducts = async (req, res) => {
   try {
     const {
       page = 1,
-      limit = 12,
+      limit = 20,
       search,
       category,
       minPrice,
