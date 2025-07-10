@@ -196,6 +196,20 @@ export const deleteCategory = async (req, res) => {
       return res.status(404).json({ message: "Category not found" });
     }
 
+    // check for associated products
+    const products = await Product.findAll({
+      where: { categoryId: category.id, isActive: true },
+    });
+
+    if (products.length > 0) {
+      return res.status(400).send({
+        success: false,
+        status: "Failed to Delete",
+        message: "Cannot delete category with associated products",
+        data: products
+      });
+    }
+
     await category.destroy();
 
     return res.status(200).json({
