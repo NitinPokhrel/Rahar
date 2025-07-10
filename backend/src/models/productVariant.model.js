@@ -45,7 +45,6 @@ const ProductVariant = (sequelize) => {
           min: { args: 0, msg: "Price cannot be negative" },
         },
       },
-
       stockQuantity: {
         type: DataTypes.INTEGER,
         defaultValue: 0,
@@ -54,7 +53,6 @@ const ProductVariant = (sequelize) => {
         },
       },
       attributes: DataTypes.JSONB,
-
       images: {
         type: DataTypes.JSON,
         allowNull: true,

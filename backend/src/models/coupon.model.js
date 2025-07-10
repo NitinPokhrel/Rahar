@@ -145,6 +145,7 @@ const Coupon = (sequelize) => {
         type: DataTypes.BOOLEAN,
         defaultValue: true,
       },
+
       applicableCategories: {
         type: DataTypes.ARRAY(DataTypes.UUID),
         defaultValue: [],

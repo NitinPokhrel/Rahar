@@ -195,9 +195,17 @@ const Product = (sequelize) => {
   // Hook to validate and parse fields before saving
   Product.beforeValidate((product) => {
     // Trim string fields
-    const stringFields = ['name', 'slug', 'description', 'shortDescription', 'sku', 'metaTitle', 'metaDescription'];
+    const stringFields = [
+      "name",
+      "slug",
+      "description",
+      "shortDescription",
+      "sku",
+      "metaTitle",
+      "metaDescription",
+    ];
     stringFields.forEach((field) => {
-      if (product[field] && typeof product[field] === 'string') {
+      if (product[field] && typeof product[field] === "string") {
         product.setDataValue(field, product[field].trim());
       }
     });
