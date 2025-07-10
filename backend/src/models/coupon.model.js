@@ -119,6 +119,7 @@ const Coupon = (sequelize) => {
       },
       usageLimitPerUser: {
         type: DataTypes.INTEGER,
+        defaultValue: 1,
         validate: {
           min: { args: 1, msg: "Usage limit per user must be at least 1" },
         },
@@ -145,10 +146,10 @@ const Coupon = (sequelize) => {
         type: DataTypes.BOOLEAN,
         defaultValue: true,
       },
-
-      applicableCategories: {
-        type: DataTypes.ARRAY(DataTypes.UUID),
-        defaultValue: [],
+      isGlobal: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+        comment: "If true, this coupon can be used for all products",
       },
       applicableProducts: {
         type: DataTypes.ARRAY(DataTypes.UUID),

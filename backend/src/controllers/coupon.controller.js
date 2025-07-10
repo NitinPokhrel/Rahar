@@ -10,21 +10,21 @@ export const validateCoupon = async (req, res) => {
     if (!code) {
       return res.status(400).json({
         message: "Coupon code is required",
-        status: "error"
+        status: "error",
       });
     }
 
     const coupon = await Coupon.findOne({
       where: {
         code: code.toUpperCase(),
-        isActive: true
-      }
+        isActive: true,
+      },
     });
 
     if (!coupon) {
       return res.status(404).json({
         message: "Invalid coupon code",
-        status: "error"
+        status: "error",
       });
     }
 
@@ -32,19 +32,19 @@ export const validateCoupon = async (req, res) => {
     if (!validation.valid) {
       return res.status(400).json({
         message: validation.reason,
-        status: "error"
+        status: "error",
       });
     }
 
     if (coupon.usageLimitPerUser) {
       const userUsageCount = await CouponUsage.count({
-        where: { couponId: coupon.id, userId }
+        where: { couponId: coupon.id, userId },
       });
 
       if (userUsageCount >= coupon.usageLimitPerUser) {
         return res.status(400).json({
           message: "You have reached the usage limit for this coupon",
-          status: "error"
+          status: "error",
         });
       }
     }
@@ -61,9 +61,9 @@ export const validateCoupon = async (req, res) => {
           name: coupon.name,
           type: coupon.type,
           value: coupon.value,
-          discountAmount
-        }
-      }
+          discountAmount,
+        },
+      },
     });
   } catch (error) {
     console.error("Error validating coupon:", error);
@@ -79,30 +79,31 @@ export const getAvailableCoupons = async (req, res) => {
     const coupons = await Coupon.findAll({
       where: {
         isActive: true,
-        [Op.or]: [
-          { startDate: null },
-          { startDate: { [Op.lte]: now } }
-        ],
-        [Op.or]: [
-          { endDate: null },
-          { endDate: { [Op.gte]: now } }
-        ],
+        [Op.or]: [{ startDate: null }, { startDate: { [Op.lte]: now } }],
+        [Op.or]: [{ endDate: null }, { endDate: { [Op.gte]: now } }],
         [Op.or]: [
           { usageLimit: null },
-          { usedCount: { [Op.lt]: Sequelize.col("usageLimit") } }
-        ]
+          { usedCount: { [Op.lt]: Sequelize.col("usageLimit") } },
+        ],
       },
       attributes: [
-        "id", "code", "name", "description", "type", "value",
-        "minimumAmount", "maxDiscountAmount", "endDate"
-      ]
+        "id",
+        "code",
+        "name",
+        "description",
+        "type",
+        "value",
+        "minimumAmount",
+        "maxDiscountAmount",
+        "endDate",
+      ],
     });
 
     const availableCoupons = [];
     for (const coupon of coupons) {
       if (coupon.usageLimitPerUser) {
         const userUsageCount = await CouponUsage.count({
-          where: { couponId: coupon.id, userId }
+          where: { couponId: coupon.id, userId },
         });
         if (userUsageCount < coupon.usageLimitPerUser) {
           availableCoupons.push(coupon);
@@ -115,7 +116,7 @@ export const getAvailableCoupons = async (req, res) => {
     return res.status(200).json({
       message: "Available coupons fetched successfully",
       status: "success",
-      data: availableCoupons
+      data: availableCoupons,
     });
   } catch (error) {
     console.error("Error fetching available coupons:", error);
