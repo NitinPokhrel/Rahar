@@ -38,25 +38,14 @@ const ProductVariant = (sequelize) => {
           notEmpty: { msg: "Variant SKU is required" },
         },
       },
-      name: {
-        type: DataTypes.STRING(200),
-        allowNull: false,
-        validate: {
-          notEmpty: { msg: "Variant name is required" },
-        },
-      },
+
       price: {
         type: DataTypes.DECIMAL(10, 2),
         validate: {
           min: { args: 0, msg: "Price cannot be negative" },
         },
       },
-      comparePrice: {
-        type: DataTypes.DECIMAL(10, 2),
-        validate: {
-          min: { args: 0, msg: "Compare price cannot be negative" },
-        },
-      },
+
       stockQuantity: {
         type: DataTypes.INTEGER,
         defaultValue: 0,
@@ -92,15 +81,6 @@ const ProductVariant = (sequelize) => {
       isActive: {
         type: DataTypes.BOOLEAN,
         defaultValue: true,
-      },
-      description: {
-        type: DataTypes.TEXT,
-        validate: {
-          len: {
-            args: [0, 500],
-            msg: "Description cannot exceed 500 characters",
-          },
-        },
       },
     },
     {

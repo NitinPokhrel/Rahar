@@ -1,7 +1,7 @@
 import { DataTypes, Model } from "sequelize";
 
 const Order = (sequelize) => {
-   class Order extends Model {
+  class Order extends Model {
     static associate(models) {
       Order.belongsTo(models.User, { foreignKey: "userId", as: "user" });
 
