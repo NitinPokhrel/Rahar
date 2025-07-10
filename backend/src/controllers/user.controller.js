@@ -3,26 +3,173 @@ import { photoWork } from "../config/photoWork.js";
 import { User } from "../models/index.model.js";
 import { handleError } from "../utils/apiError.js";
 
-const createUserExample = {
-  clerkUserId: "user_2abc123def453",
-  firstName: "         Photo        ",
-  lastName: "Test         ",
-  email: "            john121.doe@example.com",
-  password: "securePassword123",
-  phone: "+1234567890       ",
-  dateOfBirth: "1990-05-15",
-  gender: "male",
-  // role: "customer",
-  permissions: [],
-  address: {
-    province: "California",
-    city: "Los Angeles",
-    fullAddress: "123 Main Street, Apt 4B, Los Angeles, CA 90210",
-  },
+// For self update and also by admin
+export const updateUserProfile = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (
+      req.user.id !== userId &&
+      req.user.role !== "admin" &&
+      req.user.permissions.includes("updateUser") === false
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to update this user",
+      });
+    }
+
+    const {
+      firstName,
+      lastName,
+      email,
+      phone,
+      dateOfBirth,
+      gender,
+      province,
+      city,
+      fullAddress,
+    } = req.body;
+
+    let address = null;
+
+    if (province && city && fullAddress) {
+      address = {
+        province: province ? province.trim() : null,
+        city: city ? city.trim() : null,
+        fullAddress: fullAddress ? fullAddress.trim() : null,
+      };
+    }
+
+    let avatar;
+
+    if (req.files && req.files["avatar"]) {
+      for (const file of req.files["avatar"]) {
+        const photo = await photoWork(file);
+        avatar = {
+          blurhash: photo.blurhash,
+          url: photo.secure_url,
+          public_id: photo.public_id,
+          height: photo.height,
+          width: photo.width,
+        };
+      }
+    }
+
+    const user = await User.findByPk(userId);
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    await user.update({
+      firstName: firstName ?? user.firstName,
+      lastName: lastName ?? user.lastName,
+      email: email ?? user.email,
+      phone: phone ?? user.phone,
+      dateOfBirth: dateOfBirth ?? user.dateOfBirth,
+      gender: gender ?? user.gender,
+      address: address ?? user.address,
+      avatar: avatar ?? user.avatar,
+    });
+
+    const userResponse = user.toJSON();
+    delete userResponse.password;
+
+    return res.status(200).json({
+      success: true,
+      message: "User updated successfully",
+      data: {
+        user: userResponse,
+      },
+    });
+  } catch (error) {
+    handleError(error, res);
+  }
 };
+
+export const updateUserAvatar = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Authorization check
+    if (
+      req.user.id !== userId &&
+      req.user.role !== "admin" &&
+      req.user.permissions.includes("updateUser") === false
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to update this user's avatar",
+      });
+    }
+
+    // Ensure avatar file is provided
+    if (
+      !req.files ||
+      !req.files["avatar"] ||
+      req.files["avatar"].length === 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "No avatar image provided",
+      });
+    }
+
+    // Process the uploaded avatar
+    const file = req.files["avatar"][0];
+    const photo = await photoWork(file);
+
+    const avatar = {
+      blurhash: photo.blurhash,
+      url: photo.secure_url,
+      public_id: photo.public_id,
+      height: photo.height,
+      width: photo.width,
+    };
+
+    const user = await User.findByPk(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    await user.update({ avatar });
+
+    const userResponse = user.toJSON();
+    delete userResponse.password;
+
+    return res.status(200).json({
+      success: true,
+      message: "Avatar updated successfully",
+      data: {
+        user: userResponse,
+      },
+    });
+  } catch (error) {
+    handleError(error, res);
+  }
+};
+
+// *********************************************************************************************
 
 export const createUser = async (req, res) => {
   try {
+    if (
+      req.user.role !== "admin" &&
+      !req.user.permissions.includes("manageUsers")
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to create this user",
+      });
+    }
+
     const {
       clerkUserId,
       firstName,
@@ -34,8 +181,16 @@ export const createUser = async (req, res) => {
       gender,
       role = "customer",
       permissions = [],
-      address,
-    } = createUserExample;
+      province,
+      city,
+      fullAddress,
+    } = req.body;
+
+    const address = {
+      province,
+      city,
+      fullAddress,
+    };
 
     let avatar;
 
@@ -85,12 +240,168 @@ export const createUser = async (req, res) => {
   }
 };
 
+export const blockUser = async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    if (
+      req.user.role !== "admin" &&
+      !req.user.permissions.includes("manageUsers")
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to block this user",
+      });
+    }
+
+    const [rowsUpdated, [updatedUser]] = await User.update(
+      { isActive: false },
+      {
+        where: { id: userId, isActive: true },
+        returning: true,
+        attributes: { exclude: ["password"] },
+      }
+    );
+
+    if (rowsUpdated === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found or already blocked",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      status: "success",
+      message: "User blocked successfully",
+      data: {
+        user: updatedUser,
+      },
+    });
+  } catch (error) {
+    handleError(error, res);
+  }
+};
+
+export const unblockUser = async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    if (
+      req.user.role !== "admin" &&
+      !req.user.permissions.includes("manageUsers")
+    ) {
+      return res.status(403).json({
+        success: false,
+        status: "Unblock Failed",
+        message: "You are not authorized to unblock this user",
+      });
+    }
+
+    const [rowsUpdated, [updatedUser]] = await User.update(
+      { isActive: true },
+      {
+        where: { id: userId, isActive: false },
+        returning: true,
+        attributes: { exclude: ["password"] },
+      }
+    );
+
+    if (rowsUpdated === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found or already unblocked",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      status: "success",
+      message: "User unblocked successfully",
+      data: {
+        user: updatedUser,
+      },
+    });
+  } catch (error) {
+    handleError(error, res);
+  }
+};
+
+export const updateUserPermissions = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (
+      req.user.role !== "admin" &&
+      !req.user.permissions.includes("manageUsers")
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to update this user",
+      });
+    }
+
+    const { permissions } = req.body;
+
+    const unauthorized = permissions.filter(
+      (p) => !req.user.permissions.includes(p)
+    );
+
+    if (unauthorized.length > 0) {
+      return res.status(403).json({
+        success: false,
+        message: `Unauthorized permissions: ${unauthorized.join(", ")}`,
+      });
+    }
+
+    const user = await User.findByPk(userId);
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    await user.update({
+      permissions: permissions,
+    });
+
+    const userResponse = user.toJSON();
+    delete userResponse.password;
+
+    return res.status(200).json({
+      success: true,
+      message: "Permissions updated successfully",
+      data: {
+        user: userResponse,
+      },
+    });
+  } catch (error) {
+    handleError(error, res);
+  }
+};
+
+// Get user profile by id and also get cart, orders, reviews, and wishlist items
 export const getUserProfile = async (req, res) => {
   try {
     const userId = req.params.userId;
 
     const user = await User.findByPk(userId, {
       attributes: { exclude: ["password"] },
+      include: [
+        {
+          association: "orders",
+        },
+        {
+          association: "cartItems",
+        },
+        {
+          association: "reviews",
+        },
+        {
+          association: "wishlistItems",
+        },
+      ],
     });
 
     if (!user) {
@@ -109,73 +420,3 @@ export const getUserProfile = async (req, res) => {
     handleError(error, res);
   }
 };
-
-export const updateUserProfile = async (req, res) => {
-  try {
-    const { userId } = req.params; 
-
-    const {
-
-      firstName,
-      lastName,
-      email,
-      phone,
-      dateOfBirth,
-      gender,
-      role = "customer",
-      permissions = [],
-      address,
-
-
-    } = req.body; 
-
-    let avatar;
-
-    if (req.files && req.files["avatar"]) {
-      for (const file of req.files["avatar"]) {
-        const photo = await photoWork(file);
-        const image = {
-          blurhash: photo.blurhash,
-          url: photo.secure_url,
-          public_id: photo.public_id,
-          height: photo.height,
-          width: photo.width,
-        };
-        avatar = image;
-      }
-    }
-
-    const user = await User.findByPk(userId);
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
-
-    await user.update({
-      firstName,
-      lastName,
-      email,
-      phone: phone || null,
-      dateOfBirth: dateOfBirth || null,
-      gender,
-      role,
-      permissions,
-      address,
-      avatar: avatar || user.avatar,
-    });
-
-    const userResponse = user.toJSON();
-    delete userResponse.password;
-
-    return res.status(200).json({
-      success: true,
-      message: "User updated successfully",
-      data: {
-        user: userResponse,
-      },
-    });
-  } catch (error) {
-    handleError(error, res);
-  }
-};
-

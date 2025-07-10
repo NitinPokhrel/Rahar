@@ -126,6 +126,44 @@ const ProductVariant = (sequelize) => {
     }
   );
 
+  // Hook to validate and parse fields before saving
+  ProductVariant.beforeValidate((variant) => {
+    // Trim string fields
+    const stringFields = ["sku", "name", "description"];
+    stringFields.forEach((field) => {
+      if (variant[field] && typeof variant[field] === "string") {
+        variant.setDataValue(field, variant[field].trim());
+      }
+    });
+
+    // Parse numeric fields
+    ["price", "comparePrice"].forEach((field) => {
+      if (
+        variant[field] !== undefined &&
+        variant[field] !== null &&
+        typeof variant[field] === "string"
+      ) {
+        const parsed = parseFloat(variant[field]);
+        variant.setDataValue(field, isNaN(parsed) ? null : parsed);
+      }
+    });
+
+    // Parse integer fields
+    if (
+      variant.stockQuantity !== undefined &&
+      variant.stockQuantity !== null &&
+      typeof variant.stockQuantity === "string"
+    ) {
+      const parsed = parseInt(variant.stockQuantity, 10);
+      variant.setDataValue("stockQuantity", isNaN(parsed) ? null : parsed);
+    }
+
+    // Parse boolean fields
+    if (typeof variant.isActive === "string") {
+      variant.setDataValue("isActive", variant.isActive === "true");
+    }
+  });
+
   return ProductVariant;
 };
 

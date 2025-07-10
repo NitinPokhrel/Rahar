@@ -21,7 +21,7 @@ class ApiError extends Error {
 }
 
 function handleError(error, res) {
-  console.error("Error creating user:", error);
+  console.error("Error performing operation:", error);
 
   // Handle different types of errors
   if (error.name === "SequelizeValidationError") {
@@ -34,7 +34,7 @@ function handleError(error, res) {
     return res.status(400).json({
       success: false,
       status: "Validation Error",
-      message: "User validation failed",
+      message: "Validation failed",
       errors: validationErrors,
     });
   }
@@ -45,9 +45,9 @@ function handleError(error, res) {
     return res.status(409).json({
       success: false,
       status: "Duplicate Error",
-      message: `User with this ${duplicateField} already exists`,
+      message: `Document with this ${duplicateField} already exists`,
       errors: {
-        [duplicateField]: `This ${duplicateField} is already registered`,
+        [duplicateField]: `This ${duplicateField} is already present`,
       },
     });
   }
@@ -76,10 +76,12 @@ function handleError(error, res) {
     });
   }
 
-  if (error.name === "SequelizeConnectionError" || 
-      error.name === "SequelizeConnectionRefusedError" ||
-      error.name === "SequelizeHostNotFoundError" ||
-      error.name === "SequelizeTimeoutError") {
+  if (
+    error.name === "SequelizeConnectionError" ||
+    error.name === "SequelizeConnectionRefusedError" ||
+    error.name === "SequelizeHostNotFoundError" ||
+    error.name === "SequelizeTimeoutError"
+  ) {
     // Database connection errors
     return res.status(503).json({
       success: false,
@@ -119,7 +121,7 @@ function handleError(error, res) {
   return res.status(500).json({
     success: false,
     status: "Internal Server Error",
-    message: "An unexpected error occurred while creating the user",
+    message: "An unexpected error occurred while performing the operation",
     errors: {
       server:
         process.env.NODE_ENV === "development"
