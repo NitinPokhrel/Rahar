@@ -12,20 +12,18 @@ export const getCategories = async (req, res) => {
       order: [["name", "ASC"]],
     });
 
-    return res.status(200).send(
-      {
-        message: "Categories retrieved successfully",
-        status: "success",
-        data: categories,
-      }
-    );
+    return res.status(200).send({
+      success: true,
+      status: "Successful",
+      message: "Categories retrieved successfully",
+      data: categories,
+    });
   } catch (error) {
     console.error("Error retrieving categories:", error);
     res.status(500).send({
-      message: "Internal Server Error",
-      error: error.message,
-      status: "error",
-
+      success: false,
+      status: "Error",
+      message: error.message || "Internal server error",
     });
   }
 };
@@ -60,23 +58,25 @@ export const getCategoryBySlug = async (req, res) => {
 
     if (!category) {
       return res.status(404).send({
+        success: false,
+        status: "Not Found",
         message: "Category not found",
-        status: "error",
       });
     }
 
     return res.status(200).json({
+      success: true,
+      status: "Successful",
       message: "Category fetched successfully",
-      status: "success",
       data: category,
     });
   } catch (error) {
     console.error("Error fetching category:", error);
     res.status(500).send({
-      message: "Internal Server Error",
-      error: error.message,
-      status: "error",
-    })
+      success: false,
+      status: "Error",
+      message: error.message || "Internal server error",
+    });
   }
 };
 
@@ -101,12 +101,13 @@ export const createCategory = async (req, res) => {
     if (req.files && req.files["image"] && req.files["image"].length > 0) {
       const file = req.files["image"][0];
       const photo = await photoWork(file);
-       uploadedPublicId = photo.public_id;
+      uploadedPublicId = photo.public_id;
       if (!photo) {
         return res.status(400).send({
+          success: false,
+          status: "Failed to Upload",
           message: "Failed to upload image",
-          status: "error",
-        })
+        });
       }
 
       image = {
@@ -133,10 +134,11 @@ export const createCategory = async (req, res) => {
     });
 
     return res.status(201).send({
+      success: true,
+      status: "Successful",
       message: "Category created successfully",
-      status: "success",
       data: category,
-    })
+    });
   } catch (error) {
     // If image upload failed, delete the uploaded image if it exists
     if (uploadedPublicId) {
@@ -148,14 +150,12 @@ export const createCategory = async (req, res) => {
     }
     console.error("Error creating category:", error);
     return res.status(500).send({
-      message: "Internal server error",
-      error: error.message,
-      status: "error",
-    })
+      success: false,
+      status: "Error creating category",
+      message: error.message || "Internal server error",
+    });
   }
 };
-
-
 
 export const updateCategory = async (req, res) => {
   let uploadedPublicId = null;
@@ -166,8 +166,9 @@ export const updateCategory = async (req, res) => {
     const category = await Category.findByPk(id);
     if (!category) {
       return res.status(404).send({
+        success: false,
+        status: "Error updating category ",
         message: "Category not found",
-        status: "error",
       });
     }
 
@@ -178,9 +179,10 @@ export const updateCategory = async (req, res) => {
       uploadedPublicId = photo.public_id;
       if (!photo) {
         return res.status(400).send({
+          success: false,
+          status: "Error",
           message: "Failed to upload image",
-          status: "error",
-        })
+        });
       }
       updates.image = {
         url: photo.secure_url,
@@ -198,10 +200,11 @@ export const updateCategory = async (req, res) => {
             category.image.public_id
           );
           return res.status(500).send({
+            success: false,
+            status: "Error",
             message: "Failed to delete old image",
-            status: "error",
             data: category.image,
-          })
+          });
         }
         console.log("Deleted old image:", category.image);
       }
@@ -211,12 +214,13 @@ export const updateCategory = async (req, res) => {
     await category.update(updates);
 
     return res.status(200).send({
+      success: true,
+      status: "Successful",
       message: "Category updated successfully",
-      status: "success",
       data: category,
-    })
+    });
   } catch (error) {
-  // If image upload failed, delete the uploaded image if it exists
+    // If image upload failed, delete the uploaded image if it exists
     if (uploadedPublicId) {
       try {
         await deleteImage(uploadedPublicId);
@@ -226,9 +230,10 @@ export const updateCategory = async (req, res) => {
     }
     console.error("Error updating category:", error);
     res.status(500).send({
-      message: "Internal server error",
-      error: error.message,
-    })
+      success: false,
+      status: "Error",
+      message: error.message,
+    });
   }
 };
 
@@ -240,9 +245,10 @@ export const deleteCategory = async (req, res) => {
     const category = await Category.findByPk(categoryId);
     if (!category) {
       return res.status(404).send({
+        success: false,
+        status: "Error",
         message: "Category not found",
-        status: "error",
-      })
+      });
     }
 
     // check for associated products
@@ -252,11 +258,14 @@ export const deleteCategory = async (req, res) => {
     if (category.image && category.image.public_id) {
       const deletedImage = await deleteImage(category.image.public_id);
       if (!deletedImage) {
-        console.error("Failed to delete category image:", category.image.public_id);
+        console.error(
+          "Failed to delete category image:",
+          category.image.public_id
+        );
         return res.status(500).send({
-          message: "Failed to delete category image",
           success: false,
           status: "Failed to Delete",
+          message: "Failed to delete category image",
           data: category.image,
         });
       }
@@ -266,27 +275,28 @@ export const deleteCategory = async (req, res) => {
     if (products.length > 0) {
       return res.status(400).send({
         success: false,
-        status: "Failed to Delete",
+        status: "Error deleting category",
         message: "Cannot delete category with associated products",
-        data: products
+        data: products,
       });
     }
 
     await category.destroy();
 
     return res.status(200).send({
+      success: true,
       message: "Category deleted successfully",
-      status: "success",
+      status: "Successful",
       data: category,
-    })
+    });
   } catch (error) {
     console.error("Error deleting category:", error);
     // delete image if it exists
-   
+
     res.status(500).send({
-      message: "Internal server error",
-      error: error.message,
-      status: "error",
-    })
+      success: false,
+      status: "Error deleting category",
+      message: error.message,
+    });
   }
 };

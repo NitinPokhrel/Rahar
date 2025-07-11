@@ -28,23 +28,25 @@ export const getProductById = async (req, res) => {
 
     if (!product) {
       return res.status(404).send({
+        success: false,
+        status: "Error getting product",
         message: "Product not found",
-        status: "error",
-      })
+      });
     }
 
     return res.status(200).send({
+      success: true,
+      status: "successful",
       message: "Product retrieved successfully",
-      status: "success",
       data: product,
-    })
+    });
   } catch (error) {
     console.error("Error retrieving product:", error);
     res.status(500).send({
-      message: "Internal Server Error",
-      error: error.message,
-      status: "error",
-    })
+      success: false,
+      status: "Product retrieval error",
+      message: error.message || "Internal Server Error",
+    });
   }
 };
 
@@ -110,6 +112,7 @@ export const getAllProducts = async (req, res) => {
     const totalPages = Math.ceil(count / limit);
 
     res.status(200).json({
+      success: true,
       status: "success",
       data: {
         products,
@@ -125,7 +128,11 @@ export const getAllProducts = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching products:", error);
-    res.status(500).json({ status: "error", message: "Internal Server Error" });
+    res.status(500).json({
+      success: false,
+      status: "Error fetching products",
+      message: error.message || "Internal Server Error",
+    });
   }
 };
 
@@ -145,7 +152,11 @@ export const getFeaturedProducts = async (req, res) => {
     res.status(200).json({ status: "success", data: { products } });
   } catch (error) {
     console.error("Error fetching featured products:", error);
-    res.status(500).json({ status: "error", message: "Internal Server Error" });
+    res.status(500).json({
+      success: false,
+      status: "Error getting featured products",
+      message: error.message || "Internal Server Error",
+    });
   }
 };
 
@@ -159,9 +170,11 @@ export const getRelatedProducts = async (req, res) => {
     });
 
     if (!product) {
-      return res
-        .status(404)
-        .json({ status: "error", message: "Product not found" });
+      return res.status(404).json({
+        success: false,
+        status: "Error getting related products",
+        message: "Product not found",
+      });
     }
 
     const relatedProducts = await Product.findAll({
@@ -177,12 +190,18 @@ export const getRelatedProducts = async (req, res) => {
       limit: parseInt(limit),
     });
 
-    res
-      .status(200)
-      .json({ status: "success", data: { products: relatedProducts } });
+    return res.status(200).json({
+      success: true,
+      status: "Successful",
+      data: { products: relatedProducts },
+    });
   } catch (error) {
     console.error("Error fetching related products:", error);
-    res.status(500).json({ status: "error", message: "Internal Server Error" });
+    res.status(500).json({
+      success: false,
+      status: "Error getting related products",
+      message: error.message || "Internal Server Error",
+    });
   }
 };
 
@@ -194,9 +213,13 @@ export const updateProduct = async (req, res) => {
   try {
     const productId = req.params.id;
     const product = await Product.findByPk(productId);
-    
+
     if (!product) {
-      return res.status(404).json({ message: "Product not found" });
+      return res.status(404).json({
+        success: false,
+        status: "Error updating product",
+        message: "Product not found",
+      });
     }
 
     // Extract and validate basic product data
@@ -222,12 +245,20 @@ export const updateProduct = async (req, res) => {
     // Parse image configuration
     let imagesToKeep = [];
     let imagesToReplace = [];
-    
+
     try {
-      imagesToKeep = req.body.imagesToKeep ? JSON.parse(req.body.imagesToKeep) : [];
-      imagesToReplace = req.body.imagesToReplace ? JSON.parse(req.body.imagesToReplace) : [];
+      imagesToKeep = req.body.imagesToKeep
+        ? JSON.parse(req.body.imagesToKeep)
+        : [];
+      imagesToReplace = req.body.imagesToReplace
+        ? JSON.parse(req.body.imagesToReplace)
+        : [];
     } catch (error) {
-      return res.status(400).json({ message: "Invalid image configuration format" });
+      return res.status(400).send({
+        success: false,
+        status: "Error updating product",
+        message: "Invalid image configuration format",
+      });
     }
 
     // Start building the updated images array
@@ -246,11 +277,13 @@ export const updateProduct = async (req, res) => {
     if (imagesToReplace.length > 0 && req.files) {
       for (const replacement of imagesToReplace) {
         const { oldPublicId } = replacement;
-        
+
         // Find the replacement file (fieldname should match oldPublicId)
-        const replacementFile = req.files.find(f => f.fieldname === oldPublicId);
+        const replacementFile = req.files.find(
+          (f) => f.fieldname === oldPublicId
+        );
         console.log("Replacement file:", replacementFile);
-        
+
         if (replacementFile) {
           try {
             // Upload new image first
@@ -259,7 +292,9 @@ export const updateProduct = async (req, res) => {
 
             // Delete old image after successful upload
             await deleteImage(oldPublicId);
-            console.log(`Replaced image: ${oldPublicId} -> ${newPhoto.public_id}`);
+            console.log(
+              `Replaced image: ${oldPublicId} -> ${newPhoto.public_id}`
+            );
 
             // Add new image to the array
             updatedImages.push({
@@ -275,12 +310,16 @@ export const updateProduct = async (req, res) => {
               try {
                 await deleteImage(publicId);
               } catch (cleanupError) {
-                console.warn(`Failed to cleanup image ${publicId}:`, cleanupError.message);
+                console.warn(
+                  `Failed to cleanup image ${publicId}:`,
+                  cleanupError.message
+                );
               }
             }
             return res.status(500).json({
-              message: `Failed to replace image ${oldPublicId}`,
-              error: error.message,
+              success: false,
+              status: `Failed to replace image ${oldPublicId}`,
+              message: error.message || " Something went wrong ",
             });
           }
         }
@@ -290,8 +329,7 @@ export const updateProduct = async (req, res) => {
     // 3. Add new images (fieldname = "images")
     if (req.files && req.files.images) {
       const newImages = req.files.images;
-      
-      
+
       for (let i = 0; i < newImages.length; i++) {
         try {
           const photo = await photoWork(newImages[i]);
@@ -310,12 +348,16 @@ export const updateProduct = async (req, res) => {
             try {
               await deleteImage(publicId);
             } catch (cleanupError) {
-              console.warn(`Failed to cleanup image ${publicId}:`, cleanupError.message);
+              console.warn(
+                `Failed to cleanup image ${publicId}:`,
+                cleanupError.message
+              );
             }
           }
           return res.status(500).json({
-            message: `Failed to upload new image at index ${i}`,
-            error: error.message,
+            success: false,
+            status: `Failed to upload new image at index ${i}`,
+            message: error.message || " Something went wrong ",
           });
         }
       }
@@ -328,10 +370,17 @@ export const updateProduct = async (req, res) => {
         try {
           await deleteImage(publicId);
         } catch (cleanupError) {
-          console.warn(`Failed to cleanup image ${publicId}:`, cleanupError.message);
+          console.warn(
+            `Failed to cleanup image ${publicId}:`,
+            cleanupError.message
+          );
         }
       }
-      return res.status(400).json({ message: "At least one image is required" });
+      return res.status(400).json({
+        success: false,
+        status: "Error updating product",
+        message: "At least one image is required",
+      });
     }
 
     // Prepare update data with type conversion
@@ -349,7 +398,7 @@ export const updateProduct = async (req, res) => {
       lowStockThreshold: parseInt(lowStockThreshold) || 0,
       isActive: Boolean(isActive),
       isFeatured: Boolean(isFeatured),
-      tags: Array.isArray(tags) ? tags : (tags ? [tags] : []),
+      tags: Array.isArray(tags) ? tags : tags ? [tags] : [],
       metaTitle,
       metaDescription,
       images: updatedImages,
@@ -366,10 +415,17 @@ export const updateProduct = async (req, res) => {
         try {
           await deleteImage(publicId);
         } catch (cleanupError) {
-          console.warn(`Failed to cleanup image ${publicId}:`, cleanupError.message);
+          console.warn(
+            `Failed to cleanup image ${publicId}:`,
+            cleanupError.message
+          );
         }
       }
-      return res.status(500).json({ message: "Product update failed - no rows affected" });
+      return res.status(500).json({
+        success: false,
+        status: "Error updating product",
+        message: "Product update failed - no rows affected",
+      });
     }
 
     // Fetch updated product with relations
@@ -378,25 +434,30 @@ export const updateProduct = async (req, res) => {
     });
 
     return res.status(200).json({
-      message: "Product updated successfully",
-      product: updatedProduct,
+      success: true,
+      status: "Product updated successfully",
+      data: updatedProduct,
     });
-
   } catch (error) {
     // Cleanup uploaded images on any unexpected error
     for (const publicId of uploadedImageIds) {
       try {
         await deleteImage(publicId);
       } catch (cleanupError) {
-        console.warn(`Failed to cleanup image ${publicId}:`, cleanupError.message);
+        console.warn(
+          `Failed to cleanup image ${publicId}:`,
+          cleanupError.message
+        );
       }
     }
-    
+
     console.error("Error updating product:", error);
-    
+
     return res.status(500).json({
-      message: "Internal server error",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      success: false,
+      status: "Error updating product",
+      message:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
@@ -407,7 +468,11 @@ export const deleteProduct = async (req, res) => {
 
     const product = await Product.findByPk(productId);
     if (!product) {
-      return res.status(404).json({ message: "Product not found" });
+      return res.status(404).json({
+        success: false,
+        status: "Error deleting product",
+        message: "Product not found",
+      });
     }
     // Delete associated images
 
@@ -423,13 +488,17 @@ export const deleteProduct = async (req, res) => {
     await product.destroy();
 
     return res.status(200).json({
+      success: true,
+      status: "Successful",
       message: "Product deleted successfully",
     });
   } catch (error) {
     console.error("Error deleting product:", error);
     res.status(500).json({
-      message: "Internal server error",
-      error: error.message,
+      success: false,
+      status: "Error deleting product",
+      message:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
@@ -465,7 +534,9 @@ export const createProduct = async (req, res) => {
 
     // === Handle main product images ===
     if (req.files && req.files.length > 0) {
-      const imageFiles = req.files.filter(file => file.fieldname === 'images');
+      const imageFiles = req.files.filter(
+        (file) => file.fieldname === "images"
+      );
 
       for (const file of imageFiles) {
         const photo = await photoWork(file);
@@ -481,29 +552,36 @@ export const createProduct = async (req, res) => {
     }
 
     if (!images.length) {
-      return res.status(400).json({ message: "At least one image is required" });
+      return res.status(400).json({
+        success: false,
+        status: "Error creating product",
+        message: "At least one image is required",
+      });
     }
 
     // === Create product
-    const product = await Product.create({
-      name,
-      slug,
-      description,
-      shortDescription,
-      sku,
-      categoryId,
-      price,
-      comparePrice,
-      costPrice,
-      stockQuantity,
-      lowStockThreshold,
-      isActive,
-      isFeatured,
-      tags,
-      metaTitle,
-      metaDescription,
-      images,
-    }, { transaction });
+    const product = await Product.create(
+      {
+        name,
+        slug,
+        description,
+        shortDescription,
+        sku,
+        categoryId,
+        price,
+        comparePrice,
+        costPrice,
+        stockQuantity,
+        lowStockThreshold,
+        isActive,
+        isFeatured,
+        tags,
+        metaTitle,
+        metaDescription,
+        images,
+      },
+      { transaction }
+    );
 
     // === Handle variants if provided
     if (variants) {
@@ -531,7 +609,9 @@ export const createProduct = async (req, res) => {
 
         let variantImage = null;
         const fieldName = `variantImage_${variantSku}`;
-        const variantFile = req.files.find(file => file.fieldname === fieldName);
+        const variantFile = req.files.find(
+          (file) => file.fieldname === fieldName
+        );
 
         if (variantFile) {
           const uploaded = await photoWork(variantFile);
@@ -565,7 +645,8 @@ export const createProduct = async (req, res) => {
     await transaction.commit();
 
     return res.status(201).json({
-      message: "Product and variants created successfully",
+      success: true,
+      status: "Product and variants created successfully",
       productId: product.id,
     });
   } catch (error) {
@@ -579,18 +660,18 @@ export const createProduct = async (req, res) => {
         try {
           await deleteImage(publicId);
         } catch (cleanupError) {
-          console.error(`Failed to delete image with public_id ${publicId}:`, cleanupError);
+          console.error(
+            `Failed to delete image with public_id ${publicId}:`,
+            cleanupError
+          );
         }
       }
     }
 
     return res.status(500).json({
-      message: "Failed to create product and variants",
-      error: error.message,
+      success: false,
+      status: "Error creating product",
+      message: error.message || "Internal Server Error",
     });
   }
 };
-
-
-
-
