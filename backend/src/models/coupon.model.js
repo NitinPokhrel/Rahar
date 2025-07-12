@@ -168,7 +168,6 @@ const Coupon = (sequelize) => {
         { fields: ["isActive"] },
         { fields: ["startDate"] },
         { fields: ["endDate"] },
-        { fields: ["applicableCategories"], using: "gin" },
         { fields: ["applicableProducts"], using: "gin" },
       ],
     }
