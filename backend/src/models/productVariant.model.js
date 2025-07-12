@@ -37,6 +37,17 @@ const ProductVariant = (sequelize) => {
           notEmpty: { msg: "Variant SKU is required" },
         },
       },
+      name: {
+        type: DataTypes.STRING(200),
+        allowNull: false,
+        validate: {
+          notEmpty: { msg: "Product name is required" },
+          len: {
+            args: [2, 200],
+            msg: "Product name must be between 2-200 characters",
+          },
+        },
+      },
 
       price: {
         type: DataTypes.DECIMAL(10, 2),
