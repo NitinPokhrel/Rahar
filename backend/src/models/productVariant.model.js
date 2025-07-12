@@ -33,22 +33,34 @@ const ProductVariant = (sequelize) => {
       },
       sku: {
         type: DataTypes.STRING(100),
+        allowNull: false,
         validate: {
           notEmpty: { msg: "Variant SKU is required" },
         },
       },
-
+      name: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      description: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+      },
       price: {
         type: DataTypes.DECIMAL(10, 2),
         validate: {
-          min: { args: 0, msg: "Price cannot be negative" },
+          min: { args: [0], msg: "Price cannot be negative" },
         },
+      },
+      comparePrice: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: true,
       },
       stockQuantity: {
         type: DataTypes.INTEGER,
         defaultValue: 0,
         validate: {
-          min: { args: 0, msg: "Stock quantity cannot be negative" },
+          min: { args: [0], msg: "Stock quantity cannot be negative" },
         },
       },
       attributes: DataTypes.JSONB,
@@ -57,7 +69,7 @@ const ProductVariant = (sequelize) => {
         allowNull: true,
         validate: {
           isValidImage(value) {
-            if (!value) return; // allow null
+            if (!value) return;
 
             const { url, height, width, blurhash } = value;
 
@@ -69,8 +81,8 @@ const ProductVariant = (sequelize) => {
               throw new Error("Image height and width must be numbers");
             }
 
-            if (typeof blurhash !== "string") {
-              throw new Error("Image blurhash must be a string");
+            if (blurhash !== null && typeof blurhash !== "string") {
+              throw new Error("Image blurhash must be a string or null");
             }
           },
         },
@@ -88,55 +100,50 @@ const ProductVariant = (sequelize) => {
       indexes: [
         {
           unique: true,
-          fields: ["productId", "sku"], // enforce uniqueness per product
+          fields: ["productId", "sku"],
         },
         {
-          fields: ["productId"], // for faster lookup of variants by product
+          fields: ["productId"],
         },
         {
-          fields: ["isActive"], // to filter active/inactive variants efficiently
+          fields: ["isActive"],
         },
         {
           fields: ["attributes"],
-          using: "gin", // for querying/filtering JSONB attributes
+          using: "gin",
         },
       ],
     }
   );
 
-  // Hook to validate and parse fields before saving
+  // --- Data sanitization before validation ---
   ProductVariant.beforeValidate((variant) => {
     // Trim string fields
     const stringFields = ["sku", "name", "description"];
-    stringFields.forEach((field) => {
-      if (variant[field] && typeof variant[field] === "string") {
+    for (const field of stringFields) {
+      if (typeof variant[field] === "string") {
         variant.setDataValue(field, variant[field].trim());
       }
-    });
+    }
 
-    // Parse numeric fields
+    // Sanitize price and comparePrice
     ["price", "comparePrice"].forEach((field) => {
-      if (
-        variant[field] !== undefined &&
-        variant[field] !== null &&
-        typeof variant[field] === "string"
-      ) {
+      if (variant[field] !== undefined && variant[field] !== null) {
         const parsed = parseFloat(variant[field]);
-        variant.setDataValue(field, isNaN(parsed) ? null : parsed);
+        variant.setDataValue(field, isNaN(parsed) || parsed < 0 ? 0 : parsed);
       }
     });
 
-    // Parse integer fields
-    if (
-      variant.stockQuantity !== undefined &&
-      variant.stockQuantity !== null &&
-      typeof variant.stockQuantity === "string"
-    ) {
+    // Sanitize stock quantity
+    if (variant.stockQuantity !== undefined && variant.stockQuantity !== null) {
       const parsed = parseInt(variant.stockQuantity, 10);
-      variant.setDataValue("stockQuantity", isNaN(parsed) ? null : parsed);
+      variant.setDataValue(
+        "stockQuantity",
+        isNaN(parsed) || parsed < 0 ? 0 : parsed
+      );
     }
 
-    // Parse boolean fields
+    // Sanitize isActive (form-data sends boolean as string)
     if (typeof variant.isActive === "string") {
       variant.setDataValue("isActive", variant.isActive === "true");
     }

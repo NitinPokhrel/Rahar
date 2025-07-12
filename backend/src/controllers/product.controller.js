@@ -474,29 +474,52 @@ export const deleteProduct = async (req, res) => {
         message: "Product not found",
       });
     }
-    // Delete associated images
 
-    if (Array.isArray(product.images)) {
-      for (const img of product.images) {
-        if (img.public_id) {
-          await deleteImage(img.public_id);
-          console.log(`Image deleted: ${img.public_id}`);
-        }
-      }
-    }
-
-    await product.destroy();
+    // Soft-delete by setting isActive = false
+    await product.update({ isActive: false });
 
     return res.status(200).json({
       success: true,
       status: "Successful",
-      message: "Product deleted successfully",
+      message: "Product marked as inactive (soft deleted)",
     });
   } catch (error) {
-    console.error("Error deleting product:", error);
+    console.error("Error soft deleting product:", error);
     res.status(500).json({
       success: false,
       status: "Error deleting product",
+      message:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+export const undoDeleteProduct = async (req, res) => {
+  try {
+    const productId = req.params.id;
+
+    const product = await Product.findByPk(productId);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        status: "Error restoring product",
+        message: "Product not found",
+      });
+    }
+
+    // Restore by setting isActive = true
+    await product.update({ isActive: true });
+
+    return res.status(200).json({
+      success: true,
+      status: "Successful",
+      message: "Product restored successfully"
+    });
+  } catch (error) {
+    console.error("Error restoring product:", error);
+    res.status(500).json({
+      success: false,
+      status: "Error restoring product",
       message:
         process.env.NODE_ENV === "development" ? error.message : undefined,
     });
@@ -672,6 +695,202 @@ export const createProduct = async (req, res) => {
       success: false,
       status: "Error creating product",
       message: error.message || "Internal Server Error",
+    });
+  }
+};
+
+
+
+// product variant 
+
+export const updateProductVariant = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  let uploadedPublicId = null;
+
+  try {
+    const { id } = req.params;
+
+    const variant = await ProductVariant.findByPk(id);
+    if (!variant) {
+      return res.status(404).json({
+        success: false,
+        message: "Product variant not found",
+      });
+    }
+
+    const {
+      sku,
+      name,
+      price,
+      comparePrice,
+      stockQuantity,
+      attributes,
+      description,
+      isActive,
+    } = req.body;
+
+    let updatedImage = variant.images;
+
+    // === Use 'images' field instead of variantImage_<sku>
+    const replacementFile = req.files?.find(file => file.fieldname === "images");
+    console.log("Replacement file:", replacementFile);
+
+    if (replacementFile) {
+      try {
+        const newPhoto = await photoWork(replacementFile);
+        uploadedPublicId = newPhoto.public_id;
+
+        if (variant.images?.public_id) {
+          console.log("Deleting old image:", variant.images.public_id);
+          await deleteImage(variant.images.public_id);
+        }
+
+        updatedImage = {
+          url: newPhoto.secure_url,
+          width: newPhoto.width,
+          height: newPhoto.height,
+          blurhash: newPhoto.blurhash || null,
+          public_id: newPhoto.public_id,
+        };
+      } catch (error) {
+        // Cleanup uploaded image if image processing failed
+        if (uploadedPublicId) {
+          try {
+            await deleteImage(uploadedPublicId);
+          } catch (cleanupErr) {
+            console.warn("Cleanup failed:", cleanupErr.message);
+          }
+        }
+
+        return res.status(500).json({ success: false, message: "Failed to update variant image" });
+      }
+    }
+
+    // === Update variant fields
+    await variant.update(
+      {
+        sku,
+        name,
+        price,
+        comparePrice,
+        stockQuantity,
+        attributes: attributes ? JSON.parse(attributes) : undefined,
+        description,
+        isActive,
+        images: updatedImage,
+      },
+      { transaction }
+    );
+
+    await transaction.commit();
+
+    const updatedVariant = await ProductVariant.findByPk(id, {
+      include: [
+        {
+          model: Product,
+          as: "product",
+          attributes: ["id", "name", "slug"],
+        },
+      ],
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Product variant updated successfully",
+      data: updatedVariant,
+    });
+
+  } catch (error) {
+    await transaction.rollback();
+
+    if (uploadedPublicId) {
+      try {
+        await deleteImage(uploadedPublicId);
+      } catch (cleanupError) {
+        console.warn(`Failed to cleanup image ${uploadedPublicId}:`, cleanupError.message);
+      }
+    }
+
+    console.error("Variant update error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error",
+    });
+  }
+};
+
+export const deleteProductVariant = async (req, res) => {
+ 
+
+  try {
+    const { id } = req.params;
+
+    // 1. Find the variant
+    const variant = await ProductVariant.findByPk(id);
+    if (!variant) {
+      return res.status(404).json({
+        success: false,
+        status: "Error deleting product variant",
+        message: "Product variant not found",
+      });
+    }
+
+    // 2. Soft delete by setting isActive = false
+    await variant.update({ isActive: false });
+
+
+
+    return res.status(200).json({
+      success: true,
+      message: "Product variant deactivated (soft deleted) successfully",
+    });
+
+  } catch (error) {
+ 
+
+    console.error("❌ Error soft-deleting product variant:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+export const undoDeleteProductVariant = async (req, res) => {
+ 
+
+  try {
+    const { id } = req.params;
+
+    // 1. Find the variant
+    const variant = await ProductVariant.findByPk(id);
+    if (!variant) {
+      return res.status(404).json({
+        success: false,
+        status: "Error Undo deleting product variant",
+        message: "Product variant not found",
+      });
+    }
+
+    // 2. Undo soft delete by setting isActive = true
+    await variant.update({ isActive: true });
+
+
+
+    return res.status(200).json({
+      success: true,
+      message: "Product variant activated (undo soft deleted) successfully",
+    });
+
+  } catch (error) {
+ 
+
+    console.error("❌ Error Undo soft-deleting product variant:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };
