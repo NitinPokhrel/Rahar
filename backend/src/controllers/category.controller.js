@@ -12,15 +12,18 @@ export const getCategories = async (req, res) => {
       order: [["name", "ASC"]],
     });
 
-    return res.status(200).json({
+    return res.status(200).send({
+      success: true,
+      status: "Successful",
       message: "Categories retrieved successfully",
-      categories,
+      data: categories,
     });
   } catch (error) {
     console.error("Error retrieving categories:", error);
-    res.status(500).json({
-      message: "Internal server error",
-      error: error.message,
+    res.status(500).send({
+      success: false,
+      status: "Error",
+      message: error.message || "Internal server error",
     });
   }
 };
@@ -54,26 +57,33 @@ export const getCategoryBySlug = async (req, res) => {
     });
 
     if (!category) {
-      return res.status(404).json({
+      return res.status(404).send({
+        success: false,
+        status: "Not Found",
         message: "Category not found",
-        status: "error",
       });
     }
 
     return res.status(200).json({
+      success: true,
+      status: "Successful",
       message: "Category fetched successfully",
-      status: "success",
       data: category,
     });
   } catch (error) {
     console.error("Error fetching category:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    res.status(500).send({
+      success: false,
+      status: "Error",
+      message: error.message || "Internal server error",
+    });
   }
 };
 
 // ****************************   -------------------     **************************
 
 export const createCategory = async (req, res) => {
+  let uploadedPublicId = null;
   try {
     const {
       name,
@@ -91,8 +101,13 @@ export const createCategory = async (req, res) => {
     if (req.files && req.files["image"] && req.files["image"].length > 0) {
       const file = req.files["image"][0];
       const photo = await photoWork(file);
+      uploadedPublicId = photo.public_id;
       if (!photo) {
-        return res.status(400).json({ message: "Failed to upload image" });
+        return res.status(400).send({
+          success: false,
+          status: "Failed to Upload",
+          message: "Failed to upload image",
+        });
       }
 
       image = {
@@ -118,35 +133,56 @@ export const createCategory = async (req, res) => {
       image,
     });
 
-    return res.status(201).json({
+    return res.status(201).send({
+      success: true,
+      status: "Successful",
       message: "Category created successfully",
-      category,
+      data: category,
     });
   } catch (error) {
+    // If image upload failed, delete the uploaded image if it exists
+    if (uploadedPublicId) {
+      try {
+        await deleteImage(uploadedPublicId);
+      } catch (deleteError) {
+        console.error("Failed to delete uploaded image:", deleteError);
+      }
+    }
     console.error("Error creating category:", error);
-    return res.status(500).json({
-      message: "Internal server error",
-      error: error.message,
+    return res.status(500).send({
+      success: false,
+      status: "Error creating category",
+      message: error.message || "Internal server error",
     });
   }
 };
 
 export const updateCategory = async (req, res) => {
+  let uploadedPublicId = null;
   try {
     const { id } = req.params;
     const updates = { ...req.body };
 
     const category = await Category.findByPk(id);
     if (!category) {
-      return res.status(404).json({ message: "Category not found" });
+      return res.status(404).send({
+        success: false,
+        status: "Error updating category ",
+        message: "Category not found",
+      });
     }
 
     // Handle new image upload
     if (req.files && req.files["image"] && req.files["image"].length > 0) {
       const file = req.files["image"][0];
       const photo = await photoWork(file);
+      uploadedPublicId = photo.public_id;
       if (!photo) {
-        return res.status(400).json({ message: "Failed to upload image" });
+        return res.status(400).send({
+          success: false,
+          status: "Error",
+          message: "Failed to upload image",
+        });
       }
       updates.image = {
         url: photo.secure_url,
@@ -163,8 +199,11 @@ export const updateCategory = async (req, res) => {
             "Failed to delete old image:",
             category.image.public_id
           );
-          return res.status(500).json({
+          return res.status(500).send({
+            success: false,
+            status: "Error",
             message: "Failed to delete old image",
+            data: category.image,
           });
         }
         console.log("Deleted old image:", category.image);
@@ -174,52 +213,90 @@ export const updateCategory = async (req, res) => {
     // Update category
     await category.update(updates);
 
-    return res.status(200).json({
+    return res.status(200).send({
+      success: true,
+      status: "Successful",
       message: "Category updated successfully",
-      category,
+      data: category,
     });
   } catch (error) {
+    // If image upload failed, delete the uploaded image if it exists
+    if (uploadedPublicId) {
+      try {
+        await deleteImage(uploadedPublicId);
+      } catch (deleteError) {
+        console.error("Failed to delete uploaded image:", deleteError);
+      }
+    }
     console.error("Error updating category:", error);
-    res.status(500).json({
-      message: "Internal server error",
-      error: error.message,
+    res.status(500).send({
+      success: false,
+      status: "Error",
+      message: error.message,
     });
   }
 };
 
 export const deleteCategory = async (req, res) => {
+  let uploadedPublicId = null;
   try {
     const categoryId = req.params.id;
 
     const category = await Category.findByPk(categoryId);
     if (!category) {
-      return res.status(404).json({ message: "Category not found" });
+      return res.status(404).send({
+        success: false,
+        status: "Error",
+        message: "Category not found",
+      });
     }
 
     // check for associated products
     const products = await Product.findAll({
       where: { categoryId: category.id, isActive: true },
     });
+    if (category.image && category.image.public_id) {
+      const deletedImage = await deleteImage(category.image.public_id);
+      if (!deletedImage) {
+        console.error(
+          "Failed to delete category image:",
+          category.image.public_id
+        );
+        return res.status(500).send({
+          success: false,
+          status: "Failed to Delete",
+          message: "Failed to delete category image",
+          data: category.image,
+        });
+      }
+      console.log("Deleted category image:", category.image);
+    }
 
     if (products.length > 0) {
       return res.status(400).send({
         success: false,
-        status: "Failed to Delete",
+        status: "Error deleting category",
         message: "Cannot delete category with associated products",
-        data: products
+        data: products,
       });
     }
 
     await category.destroy();
 
-    return res.status(200).json({
+    return res.status(200).send({
+      success: true,
       message: "Category deleted successfully",
+      status: "Successful",
+      data: category,
     });
   } catch (error) {
     console.error("Error deleting category:", error);
-    res.status(500).json({
-      message: "Internal server error",
-      error: error.message,
+    // delete image if it exists
+
+    res.status(500).send({
+      success: false,
+      status: "Error deleting category",
+      message: error.message,
     });
   }
 };

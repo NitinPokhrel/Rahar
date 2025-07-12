@@ -25,7 +25,7 @@ router.post("/", upload.any(), createProduct);
 
 router.put(
   "/:id",
-  upload.fields([{ name: "images", maxCount: 20 }]),
+  upload.any(),
   updateProduct
 );
 router.delete("/:id", deleteProduct);
