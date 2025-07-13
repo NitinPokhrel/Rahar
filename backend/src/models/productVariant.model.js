@@ -39,13 +39,17 @@ const ProductVariant = (sequelize) => {
         },
       },
       name: {
-        type: DataTypes.STRING,
-        allowNull: true,
+        type: DataTypes.STRING(200),
+        allowNull: false,
+        validate: {
+          notEmpty: { msg: "Product name is required" },
+          len: {
+            args: [2, 200],
+            msg: "Product name must be between 2-200 characters",
+          },
+        },
       },
-      description: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-      },
+
       price: {
         type: DataTypes.DECIMAL(10, 2),
         validate: {

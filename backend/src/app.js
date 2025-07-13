@@ -42,6 +42,37 @@ app.get("/test", (req, res) => {
   });
 });
 
+
+
+// this will be removed later while authentication operation are carried out
+const createUserExample = {
+  clerkUserId: "user_2abc123def453",
+  id: "86d5fb0f-a928-465a-a853-8a58cf54b077",
+  firstName: "         Photo        ",
+  lastName: "Test         ",
+  email: "            john121.doe@example.com",
+  password: "securePassword123",
+  phone: "+1234567890       ",
+  dateOfBirth: "1990-05-15",
+  gender: "male",
+  role: "admin",
+  permissions: ["manageUsers", "manageProducts", "manageOrders"],
+  address: {
+    province: "California",
+    city: "Los Angeles",
+    fullAddress: "123 Main Street, Apt 4B, Los Angeles, CA 90210",
+  },
+};
+async function authenticateUser(req, res, next) {
+  req.user = createUserExample;
+  next();
+}
+app.use(authenticateUser);
+
+
+
+
+
 // API routes
 app.use("/api/v1/admins", adminRouter);
 app.use("/api/v1/carts", cartRouter);

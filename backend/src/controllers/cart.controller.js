@@ -1,9 +1,9 @@
 import { Cart, Product, ProductVariant } from "../models/index.model.js";
-
+import { handleError } from "../utils/apiError.js";
 
 // Get user's cart
 
-const cartItems = async (req, res) => {
+const getCartItems = async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -19,8 +19,14 @@ const cartItems = async (req, res) => {
             "slug",
             "images",
             "price",
+            "comparePrice",
+            "description",
+            "shortDescription",
             "stockQuantity",
-            "isActive",
+            "isFeatured",
+            "tags",
+            "metaTitle",
+            "metaDescription",
           ],
           where: { isActive: true },
           required: true,
@@ -32,7 +38,6 @@ const cartItems = async (req, res) => {
             "id",
             "name",
             "price",
-            "comparePrice",
             "stockQuantity",
             "attributes",
             "images",
@@ -43,53 +48,14 @@ const cartItems = async (req, res) => {
       order: [["createdAt", "DESC"]],
     });
 
-    // Calculate totals
-    let subtotal = 0;
-    let totalItems = 0;
-
-    const validCartItems = cartItems.filter((item) => {
-      if (!item.product.isActive) return false;
-
-      const itemPrice = item.variant
-        ? item.variant.price || item.product.price
-        : item.product.price;
-      const availableStock = item.variant
-        ? item.variant.stockQuantity
-        : item.product.stockQuantity;
-
-      // Check if item is still in stock
-      if (availableStock < item.quantity) {
-        // Update quantity to available stock if oversold
-        item.quantity = Math.max(0, availableStock);
-        item.save();
-      }
-
-      if (item.quantity > 0) {
-        subtotal += parseFloat(itemPrice) * item.quantity;
-        totalItems += item.quantity;
-        return true;
-      }
-
-      return false;
-    });
-
     res.status(200).json({
-      status: "success",
-      data: {
-        cartItems: validCartItems,
-        summary: {
-          subtotal: parseFloat(subtotal.toFixed(2)),
-          totalItems,
-          itemCount: validCartItems.length,
-        },
-      },
+      success: true,
+      status: "Cart fetched successfully",
+      message: "Cart items fetched successfully",
+      data: cartItems,
     });
   } catch (error) {
-    console.error("Error fetching cart:", error);
-    res.status(500).json({
-      status: "error",
-      message: "Internal Server Error",
-    });
+    handleError(error, res);
   }
 };
 
@@ -101,6 +67,7 @@ const addCart = async (req, res) => {
 
     if (!productId) {
       return res.status(400).json({
+        success: false,
         status: "error",
         message: "Product ID is required",
       });
@@ -129,7 +96,8 @@ const addCart = async (req, res) => {
 
     if (!product) {
       return res.status(404).json({
-        status: "error",
+        success: false,
+        status: "Error adding to cart",
         message: "Product not found or inactive",
       });
     }
@@ -140,6 +108,7 @@ const addCart = async (req, res) => {
       variant = product.variants[0];
       if (!variant) {
         return res.status(404).json({
+          success: false,
           status: "error",
           message: "Product variant not found",
         });
@@ -156,9 +125,6 @@ const addCart = async (req, res) => {
         message: `Only ${availableStock} items available in stock`,
       });
     }
-
-    // Get the current price
-    const unitPrice = variant ? variant.price || product.price : product.price;
 
     // Check if item already exists in cart
     const existingCartItem = await Cart.findOne({
@@ -185,7 +151,7 @@ const addCart = async (req, res) => {
       }
 
       existingCartItem.quantity = newQuantity;
-      existingCartItem.unitPrice = unitPrice; // Update price in case it changed
+
       cartItem = await existingCartItem.save();
     } else {
       // Create new cart item
@@ -194,38 +160,57 @@ const addCart = async (req, res) => {
         productId,
         variantId,
         quantity,
-        unitPrice,
       });
     }
 
-    // Fetch the complete cart item with associations
-    const completeCartItem = await Cart.findByPk(cartItem.id, {
+    const cartItems = await Cart.findAll({
+      where: { userId },
       include: [
         {
           model: Product,
           as: "product",
-          attributes: ["id", "name", "slug", "images"],
+          attributes: [
+            "id",
+            "name",
+            "slug",
+            "images",
+            "price",
+            "comparePrice",
+            "description",
+            "shortDescription",
+            "stockQuantity",
+            "isFeatured",
+            "tags",
+            "metaTitle",
+            "metaDescription",
+          ],
+          where: { isActive: true },
+          required: true,
         },
         {
           model: ProductVariant,
           as: "variant",
-          attributes: ["id", "name", "images", "attributes"],
+          attributes: [
+            "id",
+            "name",
+            "price",
+            "stockQuantity",
+            "attributes",
+            "images",
+          ],
           required: false,
         },
       ],
+      order: [["createdAt", "DESC"]],
     });
 
     res.status(201).json({
       status: "success",
       message: "Item added to cart successfully",
-      data: { cartItem: completeCartItem },
+      data: cartItems,
     });
   } catch (error) {
-    console.error("Error adding to cart:", error);
-    res.status(500).json({
-      status: "error",
-      message: "Internal Server Error",
-    });
+    handleError(error, res);
   }
 };
 
@@ -234,6 +219,7 @@ const updateCart = async (req, res) => {
   try {
     const userId = req.user.id;
     const { cartItemId } = req.params;
+
     const { quantity } = req.body;
 
     if (!quantity || quantity < 1) {
@@ -272,7 +258,8 @@ const updateCart = async (req, res) => {
 
     if (!cartItem.product.isActive) {
       return res.status(400).json({
-        status: "error",
+        success: false,
+        status: "Error Updating Quantity",
         message: "Product is no longer available",
       });
     }
@@ -284,7 +271,8 @@ const updateCart = async (req, res) => {
 
     if (quantity > availableStock) {
       return res.status(400).json({
-        status: "error",
+        success: false,
+        status: "Error updating quantity",
         message: `Only ${availableStock} items available in stock`,
       });
     }
@@ -293,15 +281,16 @@ const updateCart = async (req, res) => {
     await cartItem.save();
 
     res.status(200).json({
+      success: true,
       status: "success",
       message: "Cart item updated successfully",
-      data: { cartItem },
     });
   } catch (error) {
     console.error("Error updating cart item:", error);
     res.status(500).json({
-      status: "error",
-      message: "Internal Server Error",
+      success: false,
+      status: "Error updating quantity",
+      message: error.message || "Internal Server Error",
     });
   }
 };
@@ -321,7 +310,8 @@ const removeCartItem = async (req, res) => {
 
     if (!cartItem) {
       return res.status(404).json({
-        status: "error",
+        success: false,
+        status: "Error deleting cart item",
         message: "Cart item not found",
       });
     }
@@ -329,100 +319,24 @@ const removeCartItem = async (req, res) => {
     await cartItem.destroy();
 
     res.status(200).json({
-      status: "success",
+      success: true,
+      status: "Item Deleted Successfullt",
       message: "Item removed from cart successfully",
     });
   } catch (error) {
     console.error("Error removing cart item:", error);
     res.status(500).json({
-      status: "error",
-      message: "Internal Server Error",
+      success: false,
+      status: "Error deleting cart item",
+      message: error.message || "Internal Server Error",
     });
   }
 };
 
-// Clear entire cart
-const deleteEntireCart = async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    await Cart.destroy({
-      where: { userId },
-    });
-
-    res.status(200).json({
-      status: "success",
-      message: "Cart cleared successfully",
-    });
-  } catch (error) {
-    console.error("Error clearing cart:", error);
-    res.status(500).json({
-      status: "error",
-      message: "Internal Server Error",
-    });
-  }
-};
-
-// Get cart summary (item count and total)
-const getCartSummary = async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    const cartItems = await Cart.findAll({
-      where: { userId },
-      include: [
-        {
-          model: Product,
-          as: "product",
-          attributes: ["price", "isActive"],
-          where: { isActive: true },
-          required: true,
-        },
-        {
-          model: ProductVariant,
-          as: "variant",
-          attributes: ["price"],
-          required: false,
-        },
-      ],
-    });
-
-    let subtotal = 0;
-    let totalItems = 0;
-
-    cartItems.forEach((item) => {
-      const itemPrice = item.variant
-        ? item.variant.price || item.product.price
-        : item.product.price;
-
-      subtotal += parseFloat(itemPrice) * item.quantity;
-      totalItems += item.quantity;
-    });
-
-    res.status(200).json({
-      status: "success",
-      data: {
-        summary: {
-          subtotal: parseFloat(subtotal.toFixed(2)),
-          totalItems,
-          itemCount: cartItems.length,
-        },
-      },
-    });
-  } catch (error) {
-    console.error("Error fetching cart summary:", error);
-    res.status(500).json({
-      status: "error",
-      message: "Internal Server Error",
-    });
-  }
-};
 
 export {
-  cartItems,
+  getCartItems,
   addCart,
   updateCart,
   removeCartItem,
-  deleteEntireCart,
-  getCartSummary,
 };

@@ -44,13 +44,7 @@ const Cart = (sequelize) => {
           min: { args: 1, msg: "Quantity must be at least 1" },
         },
       },
-      unitPrice: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: false,
-        validate: {
-          min: { args: 0, msg: "Unit price cannot be negative" },
-        },
-      },
+
     },
     {
       sequelize,
