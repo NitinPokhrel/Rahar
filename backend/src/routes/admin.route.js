@@ -11,7 +11,7 @@ import {
   deleteCoupon,
   getAllReviews,
   deleteReview,
-  getNewsletterSubscription,
+
   getDashboardAnalytics,
 } from "../controllers/admin.controller.js";
 
@@ -35,8 +35,6 @@ router.delete("/coupons/:id", checkAdminPermission("removeCoupon"), deleteCoupon
 router.get("/reviews", checkAdminPermission(), getAllReviews);
 router.delete("/reviews/:id", checkAdminPermission("removeReview"), deleteReview);
 
-// ========== NEWSLETTER MANAGEMENT ==========
-router.get("/newsletter-subscriptions", checkAdminPermission(), getNewsletterSubscription);
 
 // ========== DASHBOARD ANALYTICS ==========
 router.get("/analytics/dashboard", checkAdminPermission(), getDashboardAnalytics);
