@@ -5,6 +5,7 @@ import {
   updateCategory,
   deleteCategory,
   getCategoryBySlug,
+  restoreCategory,
 } from "../controllers/category.controller.js";
 import upload from "../config/multer.js";
 
@@ -28,5 +29,6 @@ router.put(
   updateCategory
 );
 router.delete("/:id", deleteCategory);
+router.patch("/:id/restore", restoreCategory);
 
 export default router;

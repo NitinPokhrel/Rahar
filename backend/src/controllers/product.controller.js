@@ -475,13 +475,12 @@ export const deleteProduct = async (req, res) => {
       });
     }
 
-    // Soft-delete by setting isActive = false
-    await product.update({ isActive: false });
+    await product.destroy();
 
     return res.status(200).json({
       success: true,
       status: "Successful",
-      message: "Product marked as inactive (soft deleted)",
+      message: "Product marked as deleted (soft deleted)",
     });
   } catch (error) {
     console.error("Error soft deleting product:", error);
@@ -494,11 +493,12 @@ export const deleteProduct = async (req, res) => {
   }
 };
 
-export const undoDeleteProduct = async (req, res) => {
+export const restoreProduct = async (req, res) => {
   try {
-    const productId = req.params.id;
+    const { id } = req.params;
 
-    const product = await Product.findByPk(productId);
+    // 1. Find the product
+    const product = await Product.restore({ where: { id } });
     if (!product) {
       return res.status(404).json({
         success: false,
@@ -507,24 +507,22 @@ export const undoDeleteProduct = async (req, res) => {
       });
     }
 
-    // Restore by setting isActive = true
-    await product.update({ isActive: true });
-
     return res.status(200).json({
       success: true,
       status: "Successful",
-      message: "Product restored successfully"
+      message: "Product restored successfully",
     });
+
   } catch (error) {
-    console.error("Error restoring product:", error);
-    res.status(500).json({
+    console.error("❌ Error restoring product:", error);
+    return res.status(500).json({
       success: false,
-      status: "Error restoring product",
-      message:
-        process.env.NODE_ENV === "development" ? error.message : undefined,
+      message: "Internal server error",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
-};
+}
+
 
 export const createProduct = async (req, res) => {
   const transaction = await sequelize.transaction();
@@ -670,7 +668,7 @@ export const createProduct = async (req, res) => {
     return res.status(201).json({
       success: true,
       status: "Product and variants created successfully",
-      productId: product.id,
+      product
     });
   } catch (error) {
     await transaction.rollback();
@@ -835,10 +833,7 @@ export const deleteProductVariant = async (req, res) => {
       });
     }
 
-    // 2. Soft delete by setting isActive = false
-    await variant.update({ isActive: false });
-
-
+    await variant.destroy();
 
     return res.status(200).json({
       success: true,
@@ -857,40 +852,35 @@ export const deleteProductVariant = async (req, res) => {
   }
 };
 
-export const undoDeleteProductVariant = async (req, res) => {
- 
-
+// restore product variant
+export const restoreProductVariant = async (req, res) => {
   try {
     const { id } = req.params;
 
     // 1. Find the variant
-    const variant = await ProductVariant.findByPk(id);
+    const variant = await ProductVariant.restore({ where: { id } });
     if (!variant) {
       return res.status(404).json({
         success: false,
-        status: "Error Undo deleting product variant",
+        status: "Error restoring product variant",
         message: "Product variant not found",
       });
     }
 
-    // 2. Undo soft delete by setting isActive = true
-    await variant.update({ isActive: true });
-
-
-
     return res.status(200).json({
       success: true,
-      message: "Product variant activated (undo soft deleted) successfully",
+      status: "Successful",
+      message: "Product variant restored successfully",
     });
 
   } catch (error) {
- 
-
-    console.error("❌ Error Undo soft-deleting product variant:", error);
+    console.error("❌ Error restoring product variant:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
       error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
-};
+}
+
+

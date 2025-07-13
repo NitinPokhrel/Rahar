@@ -101,6 +101,8 @@ const ProductVariant = (sequelize) => {
       modelName: "ProductVariant",
       tableName: "product_variants",
       timestamps: true,
+      paranoid: true, 
+      
       indexes: [
         {
           unique: true,

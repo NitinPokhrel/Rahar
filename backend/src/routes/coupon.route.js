@@ -1,11 +1,18 @@
-import  { Router } from "express";
-import { getAvailableCoupons, validateCoupon } from "../controllers/coupon.controller.js";
+// couponRoutes.js
+import express from 'express';
 
+import { applyCoupon, createCoupon, getCouponUsage, getUserCoupons, removeCoupon, validateCoupon } from '../controllers/coupon.controller.js';
 
-const router = Router();
+const router = express.Router();
 
- router.route("/validate").post(validateCoupon);
-router.route("/available").get(getAvailableCoupons);
+// Public routes
+router.post('/create', createCoupon);
+router.post('/apply', applyCoupon);
+router.get('/validate/:code', validateCoupon);
+router.delete('/remove',  removeCoupon);
+router.get('/user/:userId',  getUserCoupons);
 
+// Admin routes
+router.get('/admin/:couponId/usage', getCouponUsage);
 
-export default router;   
+export default router;
