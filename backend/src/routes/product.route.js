@@ -16,6 +16,21 @@ import upload from "../config/multer.js";
 
 const router = express.Router();
 
+function checkAccess(req, res, next) {
+  if (
+    req.user.role !== "admin" &&
+    !req.user.permissions.includes("manageProducts")
+  ) {
+    return res.status(401).send({
+      success: false,
+      status: "Access Denied",
+      message: "You are not authorized to perform operation on products",
+    });
+  } else {
+    next();
+  }
+}
+
 // Public routes
 router.get("/", getAllProducts);
 router.get("/featured", getFeaturedProducts);
@@ -25,23 +40,15 @@ router.get("/:id", getProductById);
 // **********************************   ------------   *******************************************
 
 // Admin-only routes
-router.post("/", upload.any(), createProduct);
-
-router.put(
-  "/:id",
-  upload.any(),
-  updateProduct
-);
-router.delete("/:id", deleteProduct);
-router.patch("/:id/undo", undoDeleteProduct);
-
+router.post("/", upload.any(), checkAccess, createProduct);
+router.put("/:id", upload.any(), checkAccess, updateProduct);
+router.delete("/:id", checkAccess, deleteProduct);
+router.patch("/:id/undo", checkAccess, undoDeleteProduct);
 
 // product variant routes
-// update product variant 
-router.put("/:id/variants", upload.any(), updateProductVariant);
-// delete product variant
-router.delete("/:id/variants", deleteProductVariant);
-// undo delete product variant
-router.patch("/:id/variants/undo", undoDeleteProductVariant);
+
+router.put("/:id/variants", upload.any(), checkAccess, updateProductVariant);
+router.delete("/:id/variants", checkAccess, deleteProductVariant);
+router.patch("/:id/variants/undo", checkAccess, undoDeleteProductVariant);
 
 export default router;
