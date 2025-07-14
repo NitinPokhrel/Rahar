@@ -55,7 +55,7 @@ export const getProductById = async (req, res) => {
             {
               model: User,
               as: "user",
-              attributes: ["id", "name"],
+              attributes: ["id", "firstName", "lastName"],
             },
           ],
         },

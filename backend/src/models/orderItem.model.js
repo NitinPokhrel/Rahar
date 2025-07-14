@@ -12,6 +12,11 @@ const OrderItem = (sequelize) => {
         foreignKey: "productId",
         as: "product",
       });
+
+      OrderItem.belongsTo(models.ProductVariant, {
+        foreignKey: "productVarientId",
+        as: "productVarient",
+      });
     }
   }
 
@@ -22,17 +27,18 @@ const OrderItem = (sequelize) => {
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
       },
-
       orderId: {
         type: DataTypes.UUID,
         allowNull: false,
       },
-
       productId: {
         type: DataTypes.UUID,
         allowNull: false,
       },
-
+      productVarientId: {
+        type: DataTypes.UUID,
+        allowNull: false,
+      },
       quantity: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -41,15 +47,9 @@ const OrderItem = (sequelize) => {
           min: 1,
         },
       },
-
       price: {
         type: DataTypes.FLOAT,
         allowNull: false,
-      },
-
-      discount: {
-        type: DataTypes.FLOAT,
-        defaultValue: 0,
       },
     },
     {

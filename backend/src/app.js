@@ -45,7 +45,7 @@ app.get("/test", (req, res) => {
 // this will be removed later while authentication operation are carried out
 const createUserExample = {
   clerkUserId: "user_2abc123def453",
-  id: "86d5fb0f-a928-465a-a853-8a58cf54b077",
+  id: "7f792264-3317-4333-9830-08354d96ac36",
   firstName: "         Photo        ",
   lastName: "Test         ",
   email: "            john121.doe@example.com",
@@ -82,7 +82,7 @@ app.use("/api/v1/wishlists", wishlistRouter);
 
 // Database connection and server startup
 sequelize
-  .sync({ force: false })
+  .sync({ force: false },{ alter: true })
   .then(() => {
     console.log("✅ Database tables synced successfully.");
     return sequelize.authenticate();

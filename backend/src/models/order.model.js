@@ -46,7 +46,7 @@ const Order = (sequelize) => {
         allowNull: false,
       },
       paymentMethod: {
-        type: DataTypes.ENUM("stripe", "qr_bank", "cash_on_delivery"),
+        type: DataTypes.ENUM("Stripe", "QrBank", "CashOnDelivery"),
         allowNull: false,
       },
       paymentIntentId: {
