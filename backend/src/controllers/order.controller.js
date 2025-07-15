@@ -52,8 +52,9 @@ export const createOrder = async (req, res) => {
 
       products.push({
         product: cartItem.product.id,
-        varient: cartItem.variant ? cartItem.variant.id : null,
+        variant: cartItem.variant ? cartItem.variant.id : null,
         stock: cartItem.quantity,
+        price: cartItem.variant ? cartItem.variant.price : cartItem.product.price,
       });
 
       subtotal +=
@@ -73,6 +74,20 @@ export const createOrder = async (req, res) => {
       );
     }
 
+    console.log(      {
+        userId,
+        subtotal,
+        discountAmount: coupenResult?.amount,
+        address,
+        paymentMethod,
+        couponId: coupenResult?.id,
+        phone,
+        notes,
+        status: paymentMethod === "cashOnDelivery" ? "confirmed" : "pending",
+        paymentStatus:
+          paymentMethod === "cashOnDelivery" ? "pending" : "paid",
+      },)
+
     const order = await Order.create(
       {
         userId,
@@ -91,14 +106,14 @@ export const createOrder = async (req, res) => {
     );
 
     await Promise.all(
-      items.map((item) =>
+      products.map((item) =>
         OrderItem.create(
           {
             orderId: order.id,
-            productId: item.productId,
-            variantId: item.variantId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
+            productId: item.product,
+            variantId: item.variant,
+            quantity: item.stock,
+            unitPrice: item.price,
           },
           { transaction }
         )
@@ -152,7 +167,11 @@ export const createOrder = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     console.error("Error creating order:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    res.status(500).send({
+      success: false,
+      status: "Order Creation Failed",
+      message: error.message
+    });
   }
 };
 
