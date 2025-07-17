@@ -8,10 +8,23 @@ const ProductVariant = (sequelize) => {
         foreignKey: "productId",
         as: "product",
       });
+      
+      // Self-referencing association for variant relationships (e.g., parent-child variants)
+      ProductVariant.belongsTo(models.ProductVariant, {
+        foreignKey: "variantId",
+        as: "parentVariant",
+      });
+      
+      ProductVariant.hasMany(models.ProductVariant, {
+        foreignKey: "variantId",
+        as: "childVariants",
+      });
+      
       ProductVariant.hasMany(models.Cart, {
         foreignKey: "variantId",
         as: "cartItems",
       });
+      
       ProductVariant.hasMany(models.OrderItem, {
         foreignKey: "variantId",
         as: "orderItems",
@@ -31,6 +44,11 @@ const ProductVariant = (sequelize) => {
         allowNull: false,
         references: { model: "products", key: "id" },
       },
+      variantId: {
+        type: DataTypes.UUID,
+        allowNull: true, // Should be nullable for top-level variants
+        references: { model: "product_variants", key: "id" }, // Fixed table name
+      },
       sku: {
         type: DataTypes.STRING(100),
         allowNull: false,
@@ -49,7 +67,6 @@ const ProductVariant = (sequelize) => {
           },
         },
       },
-
       price: {
         type: DataTypes.DECIMAL(10, 2),
         validate: {
@@ -110,6 +127,9 @@ const ProductVariant = (sequelize) => {
         },
         {
           fields: ["productId"],
+        },
+        {
+          fields: ["variantId"], // Add index for self-reference
         },
         {
           fields: ["isActive"],
