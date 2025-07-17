@@ -11,6 +11,7 @@ router.post('/apply', applyCoupon);
 router.get('/user/:userId',  getUserCoupons);
 router.get('/',getAllCoupons)
 
+
 // Admin routes
 router.delete('/:id',  removeCoupon);
 router.patch('/:id/restore',restoreCoupon);

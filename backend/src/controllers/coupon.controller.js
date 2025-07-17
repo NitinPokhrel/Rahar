@@ -5,7 +5,7 @@ import { Op } from 'sequelize';
 // function only not api 
 
 
-export async function applyMultipleCouponsToOrder(couponIds, userId, orderProducts, transaction) {
+export async function applyCouponToOrder(couponIds, userId, orderProducts, transaction) {
     let totalDiscountAmount = 0;
     let updatedProducts = [...orderProducts];
     const appliedCoupons = [];
@@ -285,7 +285,6 @@ export async function applyMultipleCouponsToOrder(couponIds, userId, orderProduc
         failedCoupons: failedCoupons
     };
 }
-
 
 // api 
 export const createCoupon = async (req, res) => {
