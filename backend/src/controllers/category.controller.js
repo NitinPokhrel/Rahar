@@ -10,8 +10,15 @@ export const getCategories = async (req, res) => {
         { model: Category, as: "children" },
       ],
       order: [["name", "ASC"]],
+      
     });
-
+    if (!categories || categories.length === 0) {
+      return res.status(404).send({
+        success: false,
+        status: "Not Found",
+        message: "No categories found",
+      });
+    }
     return res.status(200).send({
       success: true,
       status: "Successful",
@@ -255,23 +262,7 @@ export const deleteCategory = async (req, res) => {
     const products = await Product.findAll({
       where: { categoryId: category.id, isActive: true },
     });
-    if (category.image && category.image.public_id) {
-      const deletedImage = await deleteImage(category.image.public_id);
-      if (!deletedImage) {
-        console.error(
-          "Failed to delete category image:",
-          category.image.public_id
-        );
-        return res.status(500).send({
-          success: false,
-          status: "Failed to Delete",
-          message: "Failed to delete category image",
-          data: category.image,
-        });
-      }
-      console.log("Deleted category image:", category.image);
-    }
-
+   
     if (products.length > 0) {
       return res.status(400).send({
         success: false,
@@ -291,12 +282,41 @@ export const deleteCategory = async (req, res) => {
     });
   } catch (error) {
     console.error("Error deleting category:", error);
-    // delete image if it exists
+    
 
     res.status(500).send({
       success: false,
       status: "Error deleting category",
       message: error.message,
+    });
+  }
+};
+
+export const restoreCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const category = await Category.restore({ where: { id }});
+    if (!category) {
+      return res.status(404).send({
+        success: false,
+        status: "Error restoring category",
+        message: "Category not found",
+      });
+    }
+
+    return res.status(200).send({
+      success: true,
+      status: "Successful",
+      message: "Category restored successfully",
+      data: category,
+    });
+  } catch (error) {
+    console.error("Error restoring category:", error);
+    res.status(500).send({
+      success: false,
+      status: "Error restoring category",
+      message: error.message || "Internal server error",
     });
   }
 };
