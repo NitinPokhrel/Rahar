@@ -24,7 +24,11 @@ export const createOrder = async (req, res) => {
     if (!items || items.length === 0) {
       return res
         .status(400)
-        .json({ message: "Order items are required", status: "error" });
+        .json({
+          success: false,
+          message: "Order items are required",
+          status: "error",
+        });
     }
 
     let products = [];
