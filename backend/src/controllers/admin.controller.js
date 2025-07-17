@@ -7,7 +7,7 @@ import {
   Coupon,
   Review,
   ProductVariant,
-  NewsletterSubscription,
+
 } from "../models/index.model.js";
 import { Op } from "sequelize";
 
@@ -365,46 +365,6 @@ const deleteReview = async (req, res) => {
   }
 };
 
-// ==================== NEWSLETTER MANAGEMENT ====================
-
-// Get newsletter subscriptions
-// router.get(
-//   "/newsletter-subscriptions",
-//   checkAdminPermission(),
-const getNewsletterSubscription = async (req, res) => {
-  try {
-    const { page = 1, limit = 10, isActive } = req.query;
-    const offset = (page - 1) * limit;
-    const where = {};
-
-    if (isActive !== undefined) where.isActive = isActive === "true";
-
-    const { count, rows: subscriptions } =
-      await NewsletterSubscription.findAndCountAll({
-        where,
-        limit: parseInt(limit),
-        offset,
-        order: [["createdAt", "DESC"]],
-      });
-
-    return res.status(200).json({
-      message: "Newsletter subscriptions retrieved successfully",
-      subscriptions,
-      pagination: {
-        total: count,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(count / limit),
-      },
-    });
-  } catch (error) {
-    console.error("Error retrieving subscriptions:", error);
-    res.status(500).json({
-      message: "Internal server error",
-      error: error.message,
-    });
-  }
-};
 // ==================== DASHBOARD ANALYTICS ====================
 
 // Get dashboard analytics
@@ -488,6 +448,8 @@ export {
   deleteCoupon,
   getAllReviews,
   deleteReview,
-  getNewsletterSubscription,
   getDashboardAnalytics,
 };
+
+
+

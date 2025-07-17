@@ -14,14 +14,50 @@ export const getProductById = async (req, res) => {
   try {
     const productId = req.params.id;
 
+    const isAdmin =
+      req.user.role === "admin" &&
+      req.user.permissions.includes("manageProducts");
+
     const product = await Product.findByPk(productId, {
+      attributes: isAdmin
+        ? undefined // all attributes
+        : [
+            "id",
+            "name",
+            "slug",
+            "images",
+            "price",
+            "comparePrice",
+            "description",
+            "shortDescription",
+            "stockQuantity",
+            "isFeatured",
+            "tags",
+            "metaTitle",
+            "metaDescription",
+          ],
       include: [
-        { model: Category, as: "category" },
-        { model: ProductVariant, as: "variants" },
+        {
+          model: Category,
+          as: "category",
+        },
+        {
+          model: ProductVariant,
+          as: "variants",
+          attributes: isAdmin
+            ? undefined
+            : ["id", "name", "price", "stockQuantity", "attributes", "images"],
+        },
         {
           model: Review,
           as: "reviews",
-          include: [{ model: User, as: "user" }],
+          include: [
+            {
+              model: User,
+              as: "user",
+              attributes: ["id", "firstName", "lastName"],
+            },
+          ],
         },
       ],
     });
@@ -91,16 +127,51 @@ export const getAllProducts = async (req, res) => {
       whereConditions.tags = { [Op.overlap]: tagArray };
     }
 
+    const isAdmin =
+      req.user?.role === "admin" ||
+      req.user?.permissions?.includes("manageProducts");
+
     const { count, rows: products } = await Product.findAndCountAll({
       where: whereConditions,
+      attributes: isAdmin
+        ? undefined
+        : [
+            "id",
+            "name",
+            "slug",
+            "images",
+            "price",
+            "comparePrice",
+            "description",
+            "shortDescription",
+            "stockQuantity",
+            "isFeatured",
+            "tags",
+            "metaTitle",
+            "metaDescription",
+          ],
       include: [
-        { model: Category, as: "category", attributes: ["id", "name", "slug"] },
+        {
+          model: Category,
+          as: "category",
+          attributes: ["id", "name", "slug"],
+        },
         {
           model: ProductVariant,
           as: "variants",
           where: { isActive: true },
           required: false,
-          attributes: ["id", "name", "price", "comparePrice", "stockQuantity"],
+          attributes: isAdmin
+            ? undefined
+            : [
+                "id",
+                "name",
+                "price",
+                "comparePrice",
+                "stockQuantity",
+                "attributes",
+                "images",
+              ],
         },
       ],
       order: [[sortBy, sortOrder.toUpperCase()]],
@@ -142,8 +213,27 @@ export const getFeaturedProducts = async (req, res) => {
 
     const products = await Product.findAll({
       where: { isActive: true, isFeatured: true },
+      attributes: [
+        "id",
+        "name",
+        "slug",
+        "images",
+        "price",
+        "comparePrice",
+        "description",
+        "shortDescription",
+        "stockQuantity",
+        "isFeatured",
+        "tags",
+        "metaTitle",
+        "metaDescription",
+      ],
       include: [
-        { model: Category, as: "category", attributes: ["id", "name", "slug"] },
+        {
+          model: Category,
+          as: "category",
+          attributes: ["id", "name", "slug"],
+        },
       ],
       order: [["createdAt", "DESC"]],
       limit: parseInt(limit),
@@ -183,8 +273,27 @@ export const getRelatedProducts = async (req, res) => {
         id: { [Op.ne]: productId },
         isActive: true,
       },
+      attributes: [
+        "id",
+        "name",
+        "slug",
+        "images",
+        "price",
+        "comparePrice",
+        "description",
+        "shortDescription",
+        "stockQuantity",
+        "isFeatured",
+        "tags",
+        "metaTitle",
+        "metaDescription",
+      ],
       include: [
-        { model: Category, as: "category", attributes: ["id", "name", "slug"] },
+        {
+          model: Category,
+          as: "category",
+          attributes: ["id", "name", "slug"],
+        },
       ],
       order: [["createdAt", "DESC"]],
       limit: parseInt(limit),
@@ -205,7 +314,7 @@ export const getRelatedProducts = async (req, res) => {
   }
 };
 
-// ***************************** -------------------     **************************
+// ***************************** Only for admin  **************************
 
 export const updateProduct = async (req, res) => {
   let uploadedImageIds = [];
@@ -697,9 +806,7 @@ export const createProduct = async (req, res) => {
   }
 };
 
-
-
-// product variant 
+// product variant
 
 export const updateProductVariant = async (req, res) => {
   const transaction = await sequelize.transaction();
@@ -730,7 +837,9 @@ export const updateProductVariant = async (req, res) => {
     let updatedImage = variant.images;
 
     // === Use 'images' field instead of variantImage_<sku>
-    const replacementFile = req.files?.find(file => file.fieldname === "images");
+    const replacementFile = req.files?.find(
+      (file) => file.fieldname === "images"
+    );
     console.log("Replacement file:", replacementFile);
 
     if (replacementFile) {
@@ -760,7 +869,9 @@ export const updateProductVariant = async (req, res) => {
           }
         }
 
-        return res.status(500).json({ success: false, message: "Failed to update variant image" });
+        return res
+          .status(500)
+          .json({ success: false, message: "Failed to update variant image" });
       }
     }
 
@@ -797,7 +908,6 @@ export const updateProductVariant = async (req, res) => {
       message: "Product variant updated successfully",
       data: updatedVariant,
     });
-
   } catch (error) {
     await transaction.rollback();
 
@@ -805,7 +915,10 @@ export const updateProductVariant = async (req, res) => {
       try {
         await deleteImage(uploadedPublicId);
       } catch (cleanupError) {
-        console.warn(`Failed to cleanup image ${uploadedPublicId}:`, cleanupError.message);
+        console.warn(
+          `Failed to cleanup image ${uploadedPublicId}:`,
+          cleanupError.message
+        );
       }
     }
 
@@ -818,8 +931,6 @@ export const updateProductVariant = async (req, res) => {
 };
 
 export const deleteProductVariant = async (req, res) => {
- 
-
   try {
     const { id } = req.params;
 
@@ -833,27 +944,24 @@ export const deleteProductVariant = async (req, res) => {
       });
     }
 
-    await variant.destroy();
+    // 2. Soft delete by setting isActive = false
+    await variant.update({ isActive: false });
 
     return res.status(200).json({
       success: true,
       message: "Product variant deactivated (soft deleted) successfully",
     });
-
   } catch (error) {
- 
-
     console.error("❌ Error soft-deleting product variant:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
 
-// restore product variant
-export const restoreProductVariant = async (req, res) => {
+export const undoDeleteProductVariant = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -867,20 +975,20 @@ export const restoreProductVariant = async (req, res) => {
       });
     }
 
+    // 2. Undo soft delete by setting isActive = true
+    await variant.update({ isActive: true });
+
     return res.status(200).json({
       success: true,
       status: "Successful",
       message: "Product variant restored successfully",
     });
-
   } catch (error) {
-    console.error("❌ Error restoring product variant:", error);
+    console.error("❌ Error Undo soft-deleting product variant:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
-}
-
-
+};

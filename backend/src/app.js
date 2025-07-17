@@ -10,7 +10,7 @@ import userRouter from "./routes/user.route.js";
 import cartRouter from "./routes/cart.route.js";
 import categoryRouter from "./routes/category.route.js";
 import couponRouter from "./routes/coupon.route.js";
-import newsletterRouter from "./routes/newsletters.route.js";
+
 import orderRouter from "./routes/order.route.js";
 import productRouter from "./routes/product.route.js";
 import reviewRouter from "./routes/review.route.js";
@@ -42,12 +42,10 @@ app.get("/test", (req, res) => {
   });
 });
 
-
-
 // this will be removed later while authentication operation are carried out
 const createUserExample = {
   clerkUserId: "user_2abc123def453",
-  id: "86d5fb0f-a928-465a-a853-8a58cf54b077",
+  id: "cd35d4ac-a5e3-4f49-a6a7-aea15fc2395d",
   firstName: "         Photo        ",
   lastName: "Test         ",
   email: "            john121.doe@example.com",
@@ -69,16 +67,12 @@ async function authenticateUser(req, res, next) {
 }
 app.use(authenticateUser);
 
-
-
-
-
 // API routes
 app.use("/api/v1/admins", adminRouter);
 app.use("/api/v1/carts", cartRouter);
 app.use("/api/v1/categories", categoryRouter);
 app.use("/api/v1/coupons", couponRouter);
-app.use("/api/v1/newsletters", newsletterRouter);
+
 app.use("/api/v1/orders", orderRouter);
 app.use("/api/v1/products", productRouter);
 app.use("/api/v1/reviews", reviewRouter);
@@ -88,7 +82,7 @@ app.use("/api/v1/wishlists", wishlistRouter);
 
 // Database connection and server startup
 sequelize
-  .sync({ force: false })
+  .sync({ force: false },{ alter: true })
   .then(() => {
     console.log("✅ Database tables synced successfully.");
     return sequelize.authenticate();

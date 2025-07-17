@@ -4,7 +4,6 @@ const Order = (sequelize) => {
   class Order extends Model {
     static associate(models) {
       Order.belongsTo(models.User, { foreignKey: "userId", as: "user" });
-
       Order.belongsTo(models.Coupon, { foreignKey: "couponId", as: "coupon" });
       Order.hasMany(models.OrderItem, { foreignKey: "orderId", as: "items" });
     }
@@ -46,7 +45,7 @@ const Order = (sequelize) => {
         allowNull: false,
       },
       paymentMethod: {
-        type: DataTypes.ENUM("stripe", "qr_bank", "cash_on_delivery"),
+        type: DataTypes.ENUM("stripe", "qrBank", "cashOnDelivery"),
         allowNull: false,
       },
       paymentIntentId: {
@@ -56,21 +55,21 @@ const Order = (sequelize) => {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: false,
         validate: {
-          min: { args: 0, msg: "Subtotal cannot be negative" },
+          min: { args: [0], msg: "Subtotal cannot be negative" },
         },
       },
       shippingAmount: {
         type: DataTypes.DECIMAL(10, 2),
         defaultValue: 0,
         validate: {
-          min: { args: 0, msg: "Shipping amount cannot be negative" },
+          min: { args: [0], msg: "Shipping amount cannot be negative" },
         },
       },
       discountAmount: {
         type: DataTypes.DECIMAL(10, 2),
         defaultValue: 0,
         validate: {
-          min: { args: 0, msg: "Discount amount cannot be negative" },
+          min: { args: [0], msg: "Discount amount cannot be negative" },
         },
       },
 
@@ -166,8 +165,10 @@ const Order = (sequelize) => {
         { fields: ["createdAt"] },
       ],
       hooks: {
-        beforeCreate: (order) => {
+        beforeValidate: (order) => {
           // Generate a unique order number like: ORD-20250627-ABC123
+
+          console.log("✅ beforeCreate hook running");
           const randomSuffix = Math.random()
             .toString(36)
             .substring(2, 8)
