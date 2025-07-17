@@ -1,5 +1,5 @@
 // controllers/order.controller.js
-import { Op, Sequelize } from "sequelize";
+import { Op } from "sequelize";
 import {
   Order,
   OrderItem,
@@ -139,6 +139,7 @@ export const createOrder = async (req, res) => {
     const completeOrder = await Order.findOne({
       where: {
         id: order.id,
+        userId,
       },
       include: [
         {
@@ -161,13 +162,12 @@ export const createOrder = async (req, res) => {
     });
 
     return res.status(201).json({
+      success: true,
+      status: "Order Created",
       message: "Order created successfully",
-      status: "success",
       data: completeOrder,
     });
   } catch (error) {
-    console.log("I am an error");
-
     await transaction.rollback();
     console.error("Error creating order:", error);
     res.status(500).send({
@@ -178,9 +178,83 @@ export const createOrder = async (req, res) => {
   }
 };
 
+export const getSingleOrder = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { orderId } = req.params;
+
+    let order;
+
+    if (
+      req.user.role !== "admin" &&
+      !req.user.permissions.includes("manageOrders")
+    ) {
+      order = await Order.findOne({
+        where: { id: orderId, userId },
+        include: [
+          {
+            model: OrderItem,
+            as: "items",
+            include: [
+              { model: Product, as: "product" },
+              { model: ProductVariant, as: "productVarient" }, // Fixed: matches the alias in OrderItem model
+            ],
+          },
+          {
+            model: Coupon,
+            as: "coupon",
+            attributes: ["code", "name", "type", "value"],
+          },
+        ],
+      });
+    } else {
+      order = await Order.findOne({
+        where: { id: orderId },
+        include: [
+          {
+            model: OrderItem,
+            as: "items",
+            include: [
+              { model: Product, as: "product" },
+              { model: ProductVariant, as: "productVarient" },
+            ],
+          },
+          {
+            model: Coupon,
+            as: "coupon",
+          },
+        ],
+      });
+    }
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+        status: "Not Found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      status: "Order Fetched",
+      message: "Order details fetched successfully",
+      data: order,
+    });
+  } catch (error) {
+    console.error("Error fetching order details:", error);
+    res.status(500).json({
+      success: false,
+      status: "Get Order Failed ",
+      message: error.message,
+    });
+  }
+};
+
 export const getUserOrders = async (req, res) => {
   try {
     const userId = req.user.id;
+
     const { page = 1, limit = 10, status } = req.query;
     const offset = (page - 1) * limit;
 
@@ -201,7 +275,7 @@ export const getUserOrders = async (req, res) => {
             },
             {
               model: ProductVariant,
-              as: "variant",
+              as: "productVarient", // Fixed: matches the alias in OrderItem model
               attributes: ["id", "name", "attributes"],
             },
           ],
@@ -213,8 +287,9 @@ export const getUserOrders = async (req, res) => {
     });
 
     return res.status(200).json({
+      success: true,
       message: "Orders fetched successfully",
-      status: "success",
+      status: "Order Fetched",
       data: {
         orders: orders.rows,
         pagination: {
@@ -227,48 +302,11 @@ export const getUserOrders = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching orders:", error);
-    res.status(500).json({ message: "Internal Server Error" });
-  }
-};
-
-export const getSingleOrder = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { orderId } = req.params;
-
-    const order = await Order.findOne({
-      where: { id: orderId, userId },
-      include: [
-        {
-          model: OrderItem,
-          as: "items",
-          include: [
-            { model: Product, as: "product" },
-            { model: ProductVariant, as: "variant" },
-          ],
-        },
-        {
-          model: Coupon,
-          as: "coupon",
-          attributes: ["code", "name", "type", "value"],
-        },
-      ],
+    res.status(500).json({
+      success: false,
+      status: "Orders failed to get",
+      message: error.message,
     });
-
-    if (!order) {
-      return res
-        .status(404)
-        .json({ message: "Order not found", status: "error" });
-    }
-
-    return res.status(200).json({
-      message: "Order details fetched successfully",
-      status: "success",
-      data: order,
-    });
-  } catch (error) {
-    console.error("Error fetching order details:", error);
-    res.status(500).json({ message: "Internal Server Error" });
   }
 };
 

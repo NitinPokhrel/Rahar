@@ -4,7 +4,6 @@ const Order = (sequelize) => {
   class Order extends Model {
     static associate(models) {
       Order.belongsTo(models.User, { foreignKey: "userId", as: "user" });
-
       Order.belongsTo(models.Coupon, { foreignKey: "couponId", as: "coupon" });
       Order.hasMany(models.OrderItem, { foreignKey: "orderId", as: "items" });
     }
