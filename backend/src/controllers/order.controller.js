@@ -54,7 +54,9 @@ export const createOrder = async (req, res) => {
         product: cartItem.product.id,
         variant: cartItem.variant ? cartItem.variant.id : null,
         stock: cartItem.quantity,
-        price: cartItem.variant ? cartItem.variant.price : cartItem.product.price,
+        price: cartItem.variant
+          ? cartItem.variant.price
+          : cartItem.product.price,
       });
 
       subtotal +=
@@ -74,20 +76,6 @@ export const createOrder = async (req, res) => {
       );
     }
 
-    console.log(      {
-        userId,
-        subtotal,
-        discountAmount: coupenResult?.amount,
-        address,
-        paymentMethod,
-        couponId: coupenResult?.id,
-        phone,
-        notes,
-        status: paymentMethod === "cashOnDelivery" ? "confirmed" : "pending",
-        paymentStatus:
-          paymentMethod === "cashOnDelivery" ? "pending" : "paid",
-      },)
-
     const order = await Order.create(
       {
         userId,
@@ -99,8 +87,7 @@ export const createOrder = async (req, res) => {
         phone,
         notes,
         status: paymentMethod === "cashOnDelivery" ? "confirmed" : "pending",
-        paymentStatus:
-          paymentMethod === "cashOnDelivery" ? "pending" : "paid",
+        paymentStatus: paymentMethod === "cashOnDelivery" ? "pending" : "paid",
       },
       { transaction }
     );
@@ -111,34 +98,48 @@ export const createOrder = async (req, res) => {
           {
             orderId: order.id,
             productId: item.product,
-            variantId: item.variant,
+            productVarientId: item.variant,
             quantity: item.stock,
-            unitPrice: item.price,
+            price: item.price,
           },
           { transaction }
         )
       )
     );
 
-    for (const item of items) {
-      if (item.variantId) {
+    for (const product of products) {
+      // console.log(product)
+
+      if (product.variant) {
         await ProductVariant.decrement("stockQuantity", {
-          by: item.quantity,
-          where: { id: item.variantId },
+          by: product.stock,
+          where: { id: product.variant },
           transaction,
         });
       } else {
         await Product.decrement("stockQuantity", {
-          by: item.quantity,
-          where: { id: item.productId },
+          by: product.stock,
+          where: { id: product.product },
           transaction,
         });
       }
     }
 
+    for (const item of items) {
+      await Cart.destroy({
+        where: {
+          id: item,
+          userId,
+        },
+      });
+    }
+
     await transaction.commit();
 
-    const completeOrder = await Order.findByPk(order.id, {
+    const completeOrder = await Order.findOne({
+      where: {
+        id: order.id,
+      },
       include: [
         {
           model: OrderItem,
@@ -151,7 +152,7 @@ export const createOrder = async (req, res) => {
             },
             {
               model: ProductVariant,
-              as: "variant",
+              as: "productVarient",
               attributes: ["id", "name", "attributes"],
             },
           ],
@@ -165,12 +166,14 @@ export const createOrder = async (req, res) => {
       data: completeOrder,
     });
   } catch (error) {
+    console.log("I am an error");
+
     await transaction.rollback();
     console.error("Error creating order:", error);
     res.status(500).send({
       success: false,
       status: "Order Creation Failed",
-      message: error.message
+      message: error.message,
     });
   }
 };

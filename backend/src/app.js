@@ -45,7 +45,7 @@ app.get("/test", (req, res) => {
 // this will be removed later while authentication operation are carried out
 const createUserExample = {
   clerkUserId: "user_2abc123def453",
-  id: "7f792264-3317-4333-9830-08354d96ac36",
+  id: "cd35d4ac-a5e3-4f49-a6a7-aea15fc2395d",
   firstName: "         Photo        ",
   lastName: "Test         ",
   email: "            john121.doe@example.com",
