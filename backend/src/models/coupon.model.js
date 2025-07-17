@@ -10,48 +10,6 @@ const Coupon = (sequelize) => {
       });
     }
 
-    // Instance method to check if coupon is valid
-    isValid(userId = null, orderTotal = 0) {
-      const now = new Date();
-
-      // Check if coupon is active
-      if (!this.isActive) return { valid: false, reason: "Coupon is inactive" };
-
-      // Check date validity
-      if (this.startDate && now < this.startDate)
-        return { valid: false, reason: "Coupon not yet active" };
-      if (this.endDate && now > this.endDate)
-        return { valid: false, reason: "Coupon has expired" };
-
-      // Check usage limits
-      if (this.usageLimit && this.usedCount >= this.usageLimit)
-        return { valid: false, reason: "Coupon usage limit reached" };
-
-      // Check minimum order amount
-      if (this.minimumAmount && orderTotal < this.minimumAmount) {
-        return {
-          valid: false,
-          reason: `Minimum order amount of ${this.minimumAmount} required`,
-        };
-      }
-
-      return { valid: true };
-    }
-
-    // Calculate discount amount
-    calculateDiscount(orderTotal) {
-  if (!orderTotal || isNaN(orderTotal)) return 0;
-
-  if (this.type === "percentage") {
-    let discount = (orderTotal * this.value) / 100;
-    if (this.maxDiscountAmount && discount > this.maxDiscountAmount) {
-      discount = this.maxDiscountAmount;
-    }
-    return Number(discount);
-  } else {
-    return Math.min(this.value, orderTotal);
-  }
-}
 
   }
 
