@@ -37,7 +37,7 @@ const OrderItem = (sequelize) => {
       },
       productVarientId: {
         type: DataTypes.UUID,
-        allowNull: false,
+        allowNull: true,
       },
       quantity: {
         type: DataTypes.INTEGER,

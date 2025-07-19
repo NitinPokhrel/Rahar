@@ -10,9 +10,157 @@ import {
 import { sequelize } from "../models/index.model.js";
 import { Cart } from "../models/index.model.js";
 
-async function getDiscountAmount(a, b, c, d) {
-  return 200;
+async function getDiscountAmount(couponCode, userId, products, transaction) {
+  try {
+    const coupon = await models.Coupon.findOne({
+      where: { 
+        code: couponCode.toUpperCase(),
+        isActive: true 
+      },
+      transaction
+    });
+
+    if (!coupon) {
+      throw new Error('Coupon not found or inactive');
+    }
+
+    const now = new Date();
+    if (coupon.startDate && now < new Date(coupon.startDate)) {
+      throw new Error('Coupon is not yet active');
+    }
+    if (coupon.endDate && now > new Date(coupon.endDate)) {
+      throw new Error('Coupon has expired');
+    }
+
+    if (coupon.usedCount >= coupon.usageLimit) {
+      throw new Error('Coupon usage limit exceeded');
+    }
+
+    const userUsageCount = await models.CouponUsage.count({
+      where: { 
+        userId, 
+        couponId: coupon.id 
+      },
+      transaction
+    });
+
+    if (userUsageCount >= coupon.usageLimitPerUser) {
+      throw new Error('User coupon usage limit exceeded');
+    }
+
+    let allApplicableProducts = [];
+    let subtotal = 0;
+
+    for (const item of products) {
+      const price = parseFloat(item.price);
+      const stock = parseInt(item.stock);
+      const itemTotal = price * stock;
+      
+      if (coupon.isGlobal || coupon.applicableProducts.includes(item.product)) {
+        allApplicableProducts.push({
+          ...item,
+          price,
+          stock,
+          itemTotal
+        });
+      }
+      
+      subtotal += itemTotal;
+    }
+
+    if (allApplicableProducts.length === 0) {
+      throw new Error('Coupon is not applicable to any products in cart');
+    }
+
+    if (subtotal < coupon.minimumAmount) {
+      throw new Error(`Minimum order amount of ${coupon.minimumAmount} not met`);
+    }
+
+    let availableProducts = [];
+    
+    for (const item of allApplicableProducts) {
+      const productUsageCount = await models.CouponUsage.count({
+        where: { 
+          userId, 
+          couponId: coupon.id,
+          productId: item.product 
+        },
+        transaction
+      });
+      
+      if (productUsageCount < coupon.usageLimitPerUser) {
+        availableProducts.push(item);
+      }
+    }
+
+    if (availableProducts.length === 0) {
+      throw new Error('Coupon usage limit exceeded for all applicable products');
+    }
+
+    const remainingUserUsage = coupon.usageLimitPerUser - userUsageCount;
+    const maxProductsToApply = Math.min(remainingUserUsage, availableProducts.length);
+    availableProducts.sort((a, b) => b.itemTotal - a.itemTotal);
+    const productsToApply = availableProducts.slice(0, maxProductsToApply);
+
+    let discountAmount = 0;
+    
+    for (const item of productsToApply) {
+      let itemDiscount = 0;
+      
+      if (coupon.type === 'percentage') {
+        itemDiscount = (item.itemTotal * coupon.value) / 100;
+      } else if (coupon.type === 'fixed') {
+        itemDiscount = Math.min(coupon.value, item.itemTotal);
+      }
+      
+      itemDiscount = Math.min(itemDiscount, coupon.maxDiscountAmount);
+      discountAmount += itemDiscount;
+    }
+
+    const applicableSubtotal = productsToApply.reduce((sum, item) => sum + item.itemTotal, 0);
+    discountAmount = Math.min(discountAmount, applicableSubtotal);
+    discountAmount = Math.round(discountAmount * 100) / 100;
+
+    const couponUsagePromises = productsToApply.map(item => 
+      models.CouponUsage.create({
+        userId,
+        couponId: coupon.id,
+        productId: item.product,
+        usedAt: new Date()
+      }, { transaction })
+    );
+
+    await Promise.all(couponUsagePromises);
+
+    await coupon.increment('usedCount', { 
+      by: productsToApply.length, 
+      transaction 
+    });
+
+    return {
+      amount: discountAmount,
+      id: coupon.id,
+      couponDetails: {
+        code: coupon.code,
+        name: coupon.name,
+        type: coupon.type,
+        value: coupon.value,
+        appliedToProducts: productsToApply.map(p => ({
+          productId: p.product,
+          itemTotal: p.itemTotal,
+          discount: coupon.type === 'percentage' 
+            ? Math.min((p.itemTotal * coupon.value) / 100, coupon.maxDiscountAmount)
+            : Math.min(coupon.value, p.itemTotal, coupon.maxDiscountAmount)
+        }))
+      }
+    };
+
+  } catch (error) {
+    console.error('Discount calculation error:', error.message);
+    throw error;
+  }
 }
+
 
 export const createOrder = async (req, res) => {
   const transaction = await sequelize.transaction();
@@ -70,6 +218,8 @@ export const createOrder = async (req, res) => {
     }
 
     let coupenResult;
+
+    console.log(products)
 
     if (couponCode) {
       coupenResult = await getDiscountAmount(
