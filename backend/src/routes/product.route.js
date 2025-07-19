@@ -43,12 +43,12 @@ router.get("/:id", getProductById);
 router.post("/", upload.any(), checkAccess, createProduct);
 router.put("/:id", upload.any(), checkAccess, updateProduct);
 router.delete("/:id", checkAccess, deleteProduct);
-// router.patch("/:id/undo", checkAccess, undoDeleteProduct);
+router.patch("/:id/undo", checkAccess, restoreProduct);
 
 // product variant routes
 
 router.put("/:id/variants", upload.any(), checkAccess, updateProductVariant);
 router.delete("/:id/variants", checkAccess, deleteProductVariant);
-// router.patch("/:id/variants/undo", checkAccess, undoDeleteProductVariant);
+router.patch("/:id/variants/undo", checkAccess, restoreProductVariant);
 
 export default router;

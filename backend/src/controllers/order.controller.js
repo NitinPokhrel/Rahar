@@ -6,35 +6,179 @@ import {
   Product,
   ProductVariant,
   Coupon,
+  CouponUsage,
 } from "../models/index.model.js";
 import { sequelize } from "../models/index.model.js";
 import { Cart } from "../models/index.model.js";
 import { applyCouponToOrder } from "./coupon.controller.js";
 
+async function getDiscountAmount(couponCode, userId, products, transaction) {
+  try {
+    const coupon = await Coupon.findOne({
+      where: { 
+        code: couponCode.toUpperCase(),
+        isActive: true 
+      },
+      transaction
+    });
 
-// IMPROVED createOrder function with better error handling
+    if (!coupon) {
+      throw new Error('Coupon not found or inactive');
+    }
+
+    const now = new Date();
+    if (coupon.startDate && now < new Date(coupon.startDate)) {
+      throw new Error('Coupon is not yet active');
+    }
+    if (coupon.endDate && now > new Date(coupon.endDate)) {
+      throw new Error('Coupon has expired');
+    }
+
+    if (coupon.usedCount >= coupon.usageLimit) {
+      throw new Error('Coupon usage limit exceeded');
+    }
+
+    const userUsageCount = await CouponUsage.count({
+      where: { 
+        userId, 
+        couponId: coupon.id 
+      },
+      transaction
+    });
+
+    if (userUsageCount >= coupon.usageLimitPerUser) {
+      throw new Error('User coupon usage limit exceeded');
+    }
+
+    let allApplicableProducts = [];
+    let subtotal = 0;
+
+    for (const item of products) {
+      const price = parseFloat(item.price);
+      const stock = parseInt(item.stock);
+      const itemTotal = price * stock;
+      
+      if (coupon.isGlobal || coupon.applicableProducts.includes(item.product)) {
+        allApplicableProducts.push({
+          ...item,
+          price,
+          stock,
+          itemTotal
+        });
+      }
+      
+      subtotal += itemTotal;
+    }
+
+    if (allApplicableProducts.length === 0) {
+      throw new Error('Coupon is not applicable to any products in cart');
+    }
+
+    if (subtotal < coupon.minimumAmount) {
+      throw new Error(`Minimum order amount of ${coupon.minimumAmount} not met`);
+    }
+
+    let availableProducts = [];
+    
+    for (const item of allApplicableProducts) {
+      const productUsageCount = await CouponUsage.count({
+        where: { 
+          userId, 
+          couponId: coupon.id,
+          productId: item.product 
+        },
+        transaction
+      });
+      
+      if (productUsageCount < coupon.usageLimitPerUser) {
+        availableProducts.push(item);
+      }
+    }
+
+    if (availableProducts.length === 0) {
+      throw new Error('Coupon usage limit exceeded for all applicable products');
+    }
+
+    const remainingUserUsage = coupon.usageLimitPerUser - userUsageCount;
+    const maxProductsToApply = Math.min(remainingUserUsage, availableProducts.length);
+    availableProducts.sort((a, b) => b.itemTotal - a.itemTotal);
+    const productsToApply = availableProducts.slice(0, maxProductsToApply);
+
+    let discountAmount = 0;
+    
+    for (const item of productsToApply) {
+      let itemDiscount = 0;
+      
+      if (coupon.type === 'percentage') {
+        itemDiscount = (item.itemTotal * coupon.value) / 100;
+      } else if (coupon.type === 'fixed') {
+        itemDiscount = Math.min(coupon.value, item.itemTotal);
+      }
+      
+      itemDiscount = Math.min(itemDiscount, coupon.maxDiscountAmount);
+      discountAmount += itemDiscount;
+    }
+
+    const applicableSubtotal = productsToApply.reduce((sum, item) => sum + item.itemTotal, 0);
+    discountAmount = Math.min(discountAmount, applicableSubtotal);
+    discountAmount = Math.round(discountAmount * 100) / 100;
+
+    const couponUsagePromises = productsToApply.map(item => 
+      CouponUsage.create({
+        userId,
+        couponId: coupon.id,
+        productId: item.product,
+        usedAt: new Date()
+      }, { transaction })
+    );
+
+    await Promise.all(couponUsagePromises);
+
+    await coupon.increment('usedCount', { 
+      by: productsToApply.length, 
+      transaction 
+    });
+
+    return {
+      amount: discountAmount,
+      id: coupon.id,
+      couponDetails: {
+        code: coupon.code,
+        name: coupon.name,
+        type: coupon.type,
+        value: coupon.value,
+        appliedToProducts: productsToApply.map(p => ({
+          productId: p.product,
+          itemTotal: p.itemTotal,
+          discount: coupon.type === 'percentage' 
+            ? Math.min((p.itemTotal * coupon.value) / 100, coupon.maxDiscountAmount)
+            : Math.min(coupon.value, p.itemTotal, coupon.maxDiscountAmount)
+        }))
+      }
+    };
+
+  } catch (error) {
+    console.error('Discount calculation error:', error.message);
+    throw error;
+  }
+}
+
+
 export const createOrder = async (req, res) => {
     const transaction = await sequelize.transaction();
     try {
         const userId = req.user.id;
         const { items, phone, address, paymentMethod, couponCode, notes } = req.body;
 
-        // Validation
-        if (!items || items.length === 0) {
-            await transaction.rollback();
-            return res.status(400).json({ 
-                message: "Order items are required", 
-                status: "error" 
-            });
-        }
-
-        if (!phone || !address || !paymentMethod) {
-            await transaction.rollback();
-            return res.status(400).json({ 
-                message: "Phone, address, and payment method are required", 
-                status: "error" 
-            });
-        }
+    if (!items || items.length === 0) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Order items are required",
+          status: "error",
+        });
+    }
 
         let products = [];
         let subtotal = 0;
@@ -57,96 +201,53 @@ export const createOrder = async (req, res) => {
                 transaction
             });
 
-            if (!cartItem || !cartItem.product) {
-                await transaction.rollback();
-                throw new Error(`Cart item with ID ${itemId} is invalid or not found`);
-            }
+      if (!cartItem.id || !cartItem.product) {
+        throw new Error("Cart item is invalid !!");
+      }
 
-            // Check stock availability
-            const availableStock = cartItem.variant 
-                ? cartItem.variant.stockQuantity 
-                : cartItem.product.stockQuantity;
+      products.push({
+        product: cartItem.product.id,
+        variant: cartItem.variant ? cartItem.variant.id : null,
+        stock: cartItem.quantity,
+        price: cartItem.variant
+          ? cartItem.variant.price
+          : cartItem.product.price,
+      });
 
-            if (availableStock < cartItem.quantity) {
-                await transaction.rollback();
-                return res.status(400).json({
-                    success: false,
-                    message: `Insufficient stock for ${cartItem.product.name}. Available: ${availableStock}, Requested: ${cartItem.quantity}`,
-                    status: "error"
-                });
-            }
+      subtotal +=
+        parseFloat(
+          cartItem.variant ? cartItem.variant.price : cartItem.product.price
+        ) * cartItem.quantity;
+    }
 
-            products.push({
-                productId: cartItem.product.id,
-                quantity: cartItem.quantity,
-                variant: cartItem.variant
-                    ? { id: cartItem.variant.id, price: cartItem.variant.price }
-                    : null,
-                product: {
-                    id: cartItem.product.id,
-                    price: cartItem.product.price,
-                },
-            });
+    let coupenResult;
 
-            const itemPrice = parseFloat(
-                cartItem.variant ? cartItem.variant.price : cartItem.product.price
-            );
-            subtotal += itemPrice * cartItem.quantity;
-        }
+    console.log(products)
 
-        // Apply coupon if provided
-        let couponResult = null;
-        let finalTotal = subtotal;
+    if (couponCode) {
+      coupenResult = await getDiscountAmount(
+        couponCode,
+        userId,
+        products,
+        transaction
+      );
+    }
 
-        if (couponCode) {
-            console.log(products, "products before coupon");
-            couponResult = await applyCouponToOrder(
-                couponCode,
-                userId,
-                products,
-                transaction
-            );
-            console.log(couponResult, "coupon result");
-
-            if (couponResult.success) {
-                products = couponResult.updatedProducts;
-                finalTotal = subtotal - couponResult.totalDiscountAmount;
-            } else {
-                // If coupon application fails, we can either:
-                // 1. Continue without coupon (current approach)
-                // 2. Fail the entire order (uncomment below)
-                
-                // await transaction.rollback();
-                // return res.status(400).json({
-                //     success: false,
-                //     message: `Coupon error: ${couponResult.failedCoupons[0]?.reason || 'Unknown error'}`,
-                //     status: "error"
-                // });
-            }
-        }
-
-        // Create order with applied discounts
-        const orderData = {
-            userId,
-            subtotal,
-            discountAmount: couponResult?.totalDiscountAmount || 0,
-            total: finalTotal,
-            address,
-            paymentMethod,
-            phone,
-            notes,
-            status: paymentMethod === "cashOnDelivery" ? "confirmed" : "pending",
-            paymentStatus: paymentMethod === "cashOnDelivery" ? "pending" : "paid",
-        };
-
-        // Add coupon IDs if any coupons were applied
-        if (couponResult?.success && couponResult.appliedCoupons.length > 0) {
-            // If your order model supports multiple coupons, store as array
-            // Otherwise, store the first one
-            orderData.couponId = couponResult.appliedCoupons[0].couponId;
-        }
-
-        const order = await Order.create(orderData, { transaction });
+    const order = await Order.create(
+      {
+        userId,
+        subtotal,
+        discountAmount: coupenResult?.amount,
+        address,
+        paymentMethod,
+        couponId: coupenResult?.id,
+        phone,
+        notes,
+        status: paymentMethod === "cashOnDelivery" ? "confirmed" : "pending",
+        paymentStatus: paymentMethod === "cashOnDelivery" ? "pending" : "paid",
+      },
+      { transaction }
+    );
 
         // Create order items with individual discounts
         await Promise.all(

@@ -961,7 +961,7 @@ export const deleteProductVariant = async (req, res) => {
   }
 };
 
-export const undoDeleteProductVariant = async (req, res) => {
+export const restoreProductVariant = async (req, res) => {
   try {
     const { id } = req.params;
 
