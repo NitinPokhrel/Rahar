@@ -9,8 +9,8 @@ import {
   getRelatedProducts,
   updateProductVariant,
   deleteProductVariant,
-  // restoreProduct,
-  // restoreProductVariant,
+  restoreProduct,
+  restoreProductVariant,
 } from "../controllers/product.controller.js";
 import upload from "../config/multer.js";
 

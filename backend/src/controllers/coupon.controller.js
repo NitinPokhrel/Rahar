@@ -403,6 +403,119 @@ export const createCoupon = async (req, res) => {
   }
 };
 
+export const updateCoupon = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      code,
+      name,
+      description,
+      type,
+      value,
+      maxDiscountAmount,
+      minimumAmount,
+      usageLimit,
+      usageLimitPerUser,
+      startDate,
+      endDate,
+      isActive,
+      isGlobal,
+      applicableProducts,
+    } = req.body;
+
+    // Check if coupon exists
+    const existingCoupon = await Coupon.findByPk(id);
+    if (!existingCoupon) {
+      return res.status(404).json({
+        success: false,
+        message: "Coupon not found",
+      });
+    }
+
+    // Validate percentage coupon if type or value is being updated
+    const updatedType = type !== undefined ? type : existingCoupon.type;
+    const updatedValue = value !== undefined ? value : existingCoupon.value;
+    
+    if (updatedType === "percentage" && updatedValue > 100) {
+      return res.status(400).json({
+        success: false,
+        message: "Percentage discount cannot exceed 100%",
+      });
+    }
+
+    // Validate dates if they are being updated
+    const updatedStartDate = startDate !== undefined ? startDate : existingCoupon.startDate;
+    const updatedEndDate = endDate !== undefined ? endDate : existingCoupon.endDate;
+    
+    if (updatedStartDate && updatedEndDate && new Date(updatedStartDate) >= new Date(updatedEndDate)) {
+      return res.status(400).json({
+        success: false,
+        message: "End date must be after start date",
+      });
+    }
+
+    // Prepare update data
+    const updateData = {};
+    
+    if (code !== undefined) updateData.code = code.toUpperCase();
+    if (name !== undefined) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+    if (type !== undefined) updateData.type = type;
+    if (value !== undefined) updateData.value = value;
+    if (maxDiscountAmount !== undefined) updateData.maxDiscountAmount = maxDiscountAmount;
+    if (minimumAmount !== undefined) updateData.minimumAmount = minimumAmount;
+    if (usageLimit !== undefined) updateData.usageLimit = usageLimit;
+    if (usageLimitPerUser !== undefined) updateData.usageLimitPerUser = usageLimitPerUser;
+    if (startDate !== undefined) updateData.startDate = startDate ? new Date(startDate) : null;
+    if (endDate !== undefined) updateData.endDate = endDate ? new Date(endDate) : null;
+    if (isActive !== undefined) updateData.isActive = isActive;
+    if (isGlobal !== undefined) {
+      updateData.isGlobal = isGlobal;
+      // If changing to global, clear applicable products
+      if (isGlobal) {
+        updateData.applicableProducts = [];
+      }
+    }
+    if (applicableProducts !== undefined && !updateData.isGlobal) {
+      updateData.applicableProducts = applicableProducts;
+    }
+
+    // Update coupon
+    await existingCoupon.update(updateData);
+
+    // Fetch updated coupon to return
+    const updatedCoupon = await Coupon.findByPk(id);
+
+    return res.status(200).json({
+      success: true,
+      data: updatedCoupon,
+      message: "Coupon updated successfully",
+    });
+  } catch (error) {
+    console.error("Update coupon error:", error);
+
+    if (error.name === "SequelizeUniqueConstraintError") {
+      return res.status(409).json({
+        success: false,
+        message: "Coupon code already exists",
+      });
+    }
+
+    if (error.name === "SequelizeValidationError") {
+      return res.status(400).json({
+        success: false,
+        message: "Validation error",
+        errors: error.errors.map((e) => e.message),
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update coupon",
+    });
+  }
+};
+
 export const applyCoupon = async (req, res) => {
   const { code, cart } = req.body;
   const userId = req.user.id;

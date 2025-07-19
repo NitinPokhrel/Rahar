@@ -1,7 +1,7 @@
 // couponRoutes.js
 import express from 'express';
 
-import { applyCoupon, createCoupon, getAllCoupons, getCouponUsage, getUserCoupons, removeCoupon, restoreCoupon } from '../controllers/coupon.controller.js';
+import { applyCoupon, createCoupon, getAllCoupons, getCouponUsage, getUserCoupons, removeCoupon, restoreCoupon, updateCoupon } from '../controllers/coupon.controller.js';
 
 
 const router = express.Router();
@@ -16,6 +16,7 @@ router.get('/',getAllCoupons)
 router.delete('/:id',  removeCoupon);
 router.patch('/:id/restore',restoreCoupon);
 router.post('/create', createCoupon);
+router.put('/:id/update', updateCoupon);
 router.get('/:couponId/usage', getCouponUsage);
 
 export default router;
