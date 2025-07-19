@@ -9,8 +9,8 @@ import {
   getRelatedProducts,
   updateProductVariant,
   deleteProductVariant,
-  restoreProduct,
-  restoreProductVariant,
+  // restoreProduct,
+  // restoreProductVariant,
 } from "../controllers/product.controller.js";
 import upload from "../config/multer.js";
 
@@ -43,12 +43,12 @@ router.get("/:id", getProductById);
 router.post("/", upload.any(), checkAccess, createProduct);
 router.put("/:id", upload.any(), checkAccess, updateProduct);
 router.delete("/:id", checkAccess, deleteProduct);
-router.patch("/:id/undo", checkAccess, undoDeleteProduct);
+// router.patch("/:id/undo", checkAccess, undoDeleteProduct);
 
 // product variant routes
 
 router.put("/:id/variants", upload.any(), checkAccess, updateProductVariant);
 router.delete("/:id/variants", checkAccess, deleteProductVariant);
-router.patch("/:id/variants/undo", checkAccess, undoDeleteProductVariant);
+// router.patch("/:id/variants/undo", checkAccess, undoDeleteProductVariant);
 
 export default router;
