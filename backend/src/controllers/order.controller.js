@@ -6,13 +6,14 @@ import {
   Product,
   ProductVariant,
   Coupon,
+  CouponUsage,
 } from "../models/index.model.js";
 import { sequelize } from "../models/index.model.js";
 import { Cart } from "../models/index.model.js";
 
 async function getDiscountAmount(couponCode, userId, products, transaction) {
   try {
-    const coupon = await models.Coupon.findOne({
+    const coupon = await Coupon.findOne({
       where: { 
         code: couponCode.toUpperCase(),
         isActive: true 
@@ -36,7 +37,7 @@ async function getDiscountAmount(couponCode, userId, products, transaction) {
       throw new Error('Coupon usage limit exceeded');
     }
 
-    const userUsageCount = await models.CouponUsage.count({
+    const userUsageCount = await CouponUsage.count({
       where: { 
         userId, 
         couponId: coupon.id 
@@ -79,7 +80,7 @@ async function getDiscountAmount(couponCode, userId, products, transaction) {
     let availableProducts = [];
     
     for (const item of allApplicableProducts) {
-      const productUsageCount = await models.CouponUsage.count({
+      const productUsageCount = await CouponUsage.count({
         where: { 
           userId, 
           couponId: coupon.id,
@@ -122,7 +123,7 @@ async function getDiscountAmount(couponCode, userId, products, transaction) {
     discountAmount = Math.round(discountAmount * 100) / 100;
 
     const couponUsagePromises = productsToApply.map(item => 
-      models.CouponUsage.create({
+      CouponUsage.create({
         userId,
         couponId: coupon.id,
         productId: item.product,
