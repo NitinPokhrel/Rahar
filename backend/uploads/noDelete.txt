@@ -1,4 +1,4 @@
-##################################################3     WARNING   ################################
+#################################################  WARNING   ################################
 
 
 Don't delete this file and this folder 
@@ -9,8 +9,8 @@ If you delete this folder there will be error and no images will be uploaded..
 
 and if there are images in this folder it means there occurs some error during working with those images and needed to be deleted manually..
 
-if things wen't good this folder will be empty only containing this file
+if things went good this folder will be empty only containing this file
 and if you delete this file this folder won't be uplaoded to github and when you pull and start server you will get error discribed above...
 
 
-############################################ SO BE CAUTIOUS 
+############################################ SO BE CAUTIOUS ########################################
