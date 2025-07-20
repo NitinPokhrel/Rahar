@@ -54,7 +54,7 @@ const createUserExample = {
   dateOfBirth: "1990-05-15",
   gender: "male",
   role: "admin",
-  permissions: ["manageUsers", "manageProducts", "manageOrders"],
+  permissions: ["manageUsers", "manageProducts"],
   address: {
     province: "California",
     city: "Los Angeles",

@@ -438,7 +438,7 @@ export const getSingleOrder = async (req, res) => {
     let order;
 
     if (
-      req.user.role !== "admin" &&
+      req.user.role !== "admin" ||
       !req.user.permissions.includes("manageOrders")
     ) {
       order = await Order.findOne({
@@ -507,7 +507,7 @@ export const getUserOrders = async (req, res) => {
   try {
     let userId;
     if (
-      req.user.role !== "admin" &&
+      req.user.role !== "admin" ||
       !req.user.permissions.includes("manageOrders")
     ) {
       userId = req.user.id;
@@ -579,7 +579,7 @@ export const cancelOrder = async (req, res) => {
     let order;
 
     if (
-      req.user.role !== "admin" &&
+      req.user.role !== "admin" ||
       !req.user.permissions.includes("manageOrders")
     ) {
       order = await Order.findOne({
@@ -646,7 +646,7 @@ export const changeOrderStatus = async (req, res) => {
     ];
 
     if (
-      req.user.role !== "admin" &&
+      req.user.role !== "admin" ||
       !req.user.permissions.includes("manageOrders")
     ) {
       return res.status(401).json({
