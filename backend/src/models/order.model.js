@@ -27,8 +27,6 @@ const Order = (sequelize) => {
         references: { model: "users", key: "id" },
       },
 
-
-
       status: {
         type: DataTypes.ENUM(
           "pending",
@@ -48,8 +46,6 @@ const Order = (sequelize) => {
         allowNull: false,
       },
 
-
-      
       paymentMethod: {
         type: DataTypes.ENUM("stripe", "qrBank", "cashOnDelivery"),
         allowNull: false,

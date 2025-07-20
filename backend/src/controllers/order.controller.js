@@ -629,3 +629,79 @@ export const cancelOrder = async (req, res) => {
     });
   }
 };
+
+export const changeOrderStatus = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { status } = req.body;
+
+    const allowedStatuses = [
+      "pending",
+      "confirmed",
+      "processing",
+      "shipped",
+      "delivered",
+      "cancelled",
+      "refunded",
+    ];
+
+    if (
+      req.user.role !== "admin" &&
+      !req.user.permissions.includes("manageOrders")
+    ) {
+      return res.status(401).json({
+        success: false,
+        status: "Unauthorized",
+        message: "You are not allowed to change order status",
+      });
+    }
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        status: "Invalid Status",
+        message: `Status must be one of: ${allowedStatuses.join(", ")}`,
+      });
+    }
+
+    const order = await Order.findOne({ where: { id: orderId } });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        status: "Not Found",
+        message: "Order not found",
+      });
+    }
+
+    // Update timestamps conditionally
+    switch (status) {
+      case "shipped":
+        order.shippedAt = new Date();
+        break;
+      case "delivered":
+        order.deliveredAt = new Date();
+        break;
+      case "cancelled":
+        order.cancelledAt = new Date();
+        break;
+    }
+
+    order.status = status;
+    await order.save();
+
+    return res.status(200).json({
+      success: true,
+      status: "Successful",
+      message: `Order status changed to '${status}'`,
+      data: order,
+    });
+  } catch (error) {
+    console.error("Error changing order status:", error);
+    return res.status(500).json({
+      success: false,
+      status: "Order status failed to update",
+      message: error.message || "Internal Server Error",
+    });
+  }
+};
