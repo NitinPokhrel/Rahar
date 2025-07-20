@@ -319,7 +319,7 @@ export const createOrder = async (req, res) => {
 
     let coupenResult;
 
-    if (couponCodes) {
+    if (couponCodes && couponCodes.length > 0) {
       coupenResult = await getDiscountAmount(
         couponCodes,
         userId,
@@ -505,7 +505,15 @@ export const getSingleOrder = async (req, res) => {
 
 export const getUserOrders = async (req, res) => {
   try {
-    const userId = req.user.id;
+    let userId;
+    if (
+      req.user.role !== "admin" &&
+      !req.user.permissions.includes("manageOrders")
+    ) {
+      userId = req.user.id;
+    } else {
+      userId = req.query.userId;
+    }
 
     const { page = 1, limit = 10, status } = req.query;
     const offset = (page - 1) * limit;
@@ -568,16 +576,33 @@ export const cancelOrder = async (req, res) => {
     const { orderId } = req.params;
     const { reason } = req.body;
 
-    const order = await Order.findOne({
-      where: {
-        id: orderId,
-        userId,
-        status: { [Op.in]: ["pending", "confirmed"] },
-      },
-    });
+    let order;
+
+    if (
+      req.user.role !== "admin" &&
+      !req.user.permissions.includes("manageOrders")
+    ) {
+      order = await Order.findOne({
+        where: {
+          id: orderId,
+          userId,
+          status: { [Op.in]: ["pending", "confirmed"] },
+        },
+      });
+    } else {
+      order = await Order.findOne({
+        where: {
+          id: orderId,
+          status: {
+            [Op.in]: ["pending", "confirmed", "processing", "shipped"],
+          },
+        },
+      });
+    }
 
     if (!order) {
       return res.status(404).json({
+        success: false,
         message: "Order not found or cannot be cancelled",
         status: "error",
       });
@@ -590,12 +615,17 @@ export const cancelOrder = async (req, res) => {
     });
 
     return res.status(200).json({
+      success: true,
       message: "Order cancelled successfully",
-      status: "success",
+      status: "Order Cancelled",
       data: order,
     });
   } catch (error) {
     console.error("Error cancelling order:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    res.status(500).json({
+      success: false,
+      status: "Order Cancellation Failed",
+      message: error.message || "Internal Server Error",
+    });
   }
 };

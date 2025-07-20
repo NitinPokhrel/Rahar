@@ -680,46 +680,46 @@ async function checkDiscountAmount(
   }
 }
 
-// export const applyCoupon = async (req, res) => {
-//   const { code, cart } = req.body;
-//   const userId = req.user.id;
-//   try {
-//     // Input validation
-//     if (!code || !userId || !cart || !Array.isArray(cart)) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Code, userId, and cart are required",
-//       });
-//     }
+export const applyCoupon = async (req, res) => {
+  const { code, cart } = req.body;
+  const userId = req.user.id;
+  try {
+    // Input validation
+    if (!code || !userId || !cart || !Array.isArray(cart)) {
+      return res.status(400).json({
+        success: false,
+        message: "Code, userId, and cart are required",
+      });
+    }
 
-//     if (cart.length === 0) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Cart cannot be empty",
-//       });
-//     }
+    if (cart.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Cart cannot be empty",
+      });
+    }
 
-//     let data = await checkDiscountAmount(
-//       couponCodes,
-//       userId,
-//       products,
-//       (transaction = null)
-//     );
+    let data = await checkDiscountAmount(
+      couponCodes,
+      userId,
+      products,
+      (transaction = null)
+    );
 
-//     return res.status(200).json({
-//       success: true,
-//       data,
-//       message: "Coupon applied successfully",
-//     });
-//   } catch (error) {
-//     console.error("Apply coupon error:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Failed to apply coupon",
-//       error: process.env.NODE_ENV === "development" ? error.message : undefined,
-//     });
-//   }
-// };
+    return res.status(200).json({
+      success: true,
+      data,
+      message: "Coupon applied successfully",
+    });
+  } catch (error) {
+    console.error("Apply coupon error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to apply coupon",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
 
 export const removeCoupon = async (req, res) => {
   const { couponId } = req.params;
