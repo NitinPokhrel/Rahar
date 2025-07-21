@@ -1,143 +1,460 @@
-// controllers/review.controller.js
-import { Review, Product, User, Order, OrderItem } from "../models/index.model.js";
-import { sequelize } from "../models/index.model.js";
-import { Op } from "sequelize";
+import { Review, User, Product, Order } from '../models/index.model.js';
+import { Op } from 'sequelize';
 
-export const getProductReviews = async (req, res) => {
+// Create a new review
+const createReview = async (req, res) => {
   try {
-    const { productId } = req.params;
-    const { page = 1, limit = 10, rating } = req.query;
-    const offset = (page - 1) * limit;
-
-    const whereClause = { productId };
-    if (rating) whereClause.rating = rating;
-
-    const reviews = await Review.findAndCountAll({
-      where: whereClause,
-      include: [
-        { model: User, as: "user", attributes: ["firstName", "lastName", "avatar"] }
-      ],
-      limit: parseInt(limit),
-      offset: parseInt(offset),
-      order: [["createdAt", "DESC"]]
-    });
-
-    const ratingStats = await Review.findAll({
-      where: { productId },
-      attributes: [
-        "rating",
-        [sequelize.fn("COUNT", sequelize.col("rating")), "count"]
-      ],
-      group: ["rating"],
-      raw: true
-    });
-
-    return res.status(200).json({
-      message: "Reviews fetched successfully",
-      status: "success",
-      data: {
-        reviews: reviews.rows,
-        pagination: {
-          total: reviews.count,
-          page: parseInt(page),
-          limit: parseInt(limit),
-          totalPages: Math.ceil(reviews.count / limit)
-        },
-        ratingStats
-      }
-    });
-  } catch (error) {
-    console.error("Error fetching reviews:", error);
-    res.status(500).json({ message: "Internal Server Error" });
-  }
-};
-
-export const submitReview = async (req, res) => {
-  try {
-    const userId = req.user.id;
     const { productId, orderId, rating, comment } = req.body;
+    const userId = req.user.id;
 
+    // Basic validation
     if (!productId || !rating) {
       return res.status(400).json({
-        message: "Product ID and rating are required",
-        status: "error"
+        success: false,
+        message: 'Product ID and rating are required'
       });
     }
 
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rating must be between 1 and 5'
+      });
+    }
+
+    if (comment && comment.length > 2000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Comment cannot exceed 2000 characters'
+      });
+    }
+
+    // Check if product exists
+    const product = await Product.findByPk(productId);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    // Must have an order to leave a review
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID is required to write a review'
+      });
+    }
+
+    // Check if user has purchased this product and status is "delivered"
     const order = await Order.findOne({
       where: {
         id: orderId,
         userId,
-        status: "delivered"
+        status: 'delivered'
       },
-      include: [
-        {
-          model: OrderItem,
-          as: "items",
-          where: { productId }
-        }
-      ]
+      include: {
+        model: OrderItem,
+        as: 'items',
+        where: { productId }
+      }
     });
 
     if (!order) {
       return res.status(403).json({
-        message: "You can only review products you have purchased",
-        status: "error"
+        success: false,
+        message: 'You can only review this product after receiving it'
       });
     }
 
-    let review = await Review.findOne({
-      where: { userId, productId, orderId }
+    // Check for duplicate review (same user, product, order)
+    const existingReview = await Review.findOne({
+      where: {
+        userId,
+        productId,
+        orderId
+      }
     });
 
-    if (review) {
-      await review.update({ rating, comment });
-    } else {
-      review = await Review.create({ userId, productId, orderId, rating, comment });
+    if (existingReview) {
+      return res.status(409).json({
+        success: false,
+        message: 'You have already reviewed this product for this order'
+      });
     }
 
-    return res.status(201).json({
-      message: "Review submitted successfully",
-      status: "success",
+    // Create review
+    const review = await Review.create({
+      userId,
+      productId,
+      orderId,
+      rating,
+      comment: comment || null,
+      isVerifiedPurchase: true
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Review created successfully',
       data: review
     });
+
   } catch (error) {
-    console.error("Error submitting review:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    console.error('Create review error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create review'
+    });
   }
 };
 
-export const getUserReviews = async (req, res) => {
+
+// Get reviews with pagination and filters
+const getReviews = async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 10, 
+      productId, 
+      userId, 
+      rating,
+      sortBy = 'createdAt',
+      order = 'DESC'
+    } = req.query;
+
+    const offset = (page - 1) * limit;
+    const whereClause = {};
+
+    // Build filters
+    if (productId) whereClause.productId = productId;
+    if (userId) whereClause.userId = userId;
+    if (rating) whereClause.rating = rating;
+
+    const { count, rows } = await Review.findAndCountAll({
+      where: whereClause,
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'firstName', 'lastName']
+        },
+        {
+          model: Product,
+          as: 'product',
+          attributes: ['id', 'name']
+        }
+      ],
+      order: [[sortBy, order.toUpperCase()]],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    res.json({
+      success: true,
+      data: rows,
+      pagination: {
+        current: parseInt(page),
+        total: Math.ceil(count / limit),
+        count,
+        limit: parseInt(limit)
+      }
+    });
+
+  } catch (error) {
+    console.error('Get reviews error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch reviews'
+    });
+  }
+};
+
+// Get single review by ID
+const getReviewById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const review = await Review.findByPk(id, {
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'firstName', 'lastName']
+        },
+        {
+          model: Product,
+          as: 'product',
+          attributes: ['id', 'name']
+        },
+        {
+          model: Order,
+          as: 'order',
+          attributes: ['id', 'orderNumber']
+        }
+      ]
+    });
+
+    if (!review) {
+      return res.status(404).json({
+        success: false,
+        message: 'Review not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: review
+    });
+
+  } catch (error) {
+    console.error('Get review error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch review'
+    });
+  }
+};
+
+// Update review (only by owner)
+const updateReview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rating, comment } = req.body;
+    const userId = req.user.id;
+
+    // Validation
+    if (rating && (rating < 1 || rating > 5)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rating must be between 1 and 5'
+      });
+    }
+
+    if (comment && comment.length > 2000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Comment cannot exceed 2000 characters'
+      });
+    }
+
+    const review = await Review.findOne({
+      where: { id, userId }
+    });
+
+    if (!review) {
+      return res.status(404).json({
+        success: false,
+        message: 'Review not found or unauthorized'
+      });
+    }
+
+    // Update fields
+    const updateData = {};
+    if (rating !== undefined) updateData.rating = rating;
+    if (comment !== undefined) updateData.comment = comment;
+
+    await review.update(updateData);
+
+    res.json({
+      success: true,
+      message: 'Review updated successfully',
+      data: review
+    });
+
+  } catch (error) {
+    console.error('Update review error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update review'
+    });
+  }
+};
+
+// Delete review (only by owner)
+const deleteReview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const review = await Review.findOne({
+      where: { id, userId }
+    });
+
+    if (!review) {
+      return res.status(404).json({
+        success: false,
+        message: 'Review not found or unauthorized'
+      });
+    }
+
+    await review.destroy();
+
+    res.json({
+      success: true,
+      message: 'Review deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Delete review error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete review'
+    });
+  }
+};
+
+// Get product review statistics
+const getProductStats = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    // Check if product exists
+    const product = await Product.findByPk(productId);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    // Get review statistics
+    const stats = await Review.findAll({
+      where: { productId },
+      attributes: [
+        'rating',
+        [Review.sequelize.fn('COUNT', Review.sequelize.col('rating')), 'count']
+      ],
+      group: ['rating'],
+      order: [['rating', 'DESC']]
+    });
+
+    // Calculate totals
+    const totalReviews = stats.reduce((sum, stat) => sum + parseInt(stat.dataValues.count), 0);
+    const totalRating = stats.reduce((sum, stat) => {
+      return sum + (parseInt(stat.dataValues.rating) * parseInt(stat.dataValues.count));
+    }, 0);
+    const averageRating = totalReviews > 0 ? (totalRating / totalReviews).toFixed(2) : 0;
+
+    // Format rating distribution
+    const ratingDistribution = [5, 4, 3, 2, 1].map(rating => {
+      const found = stats.find(stat => parseInt(stat.dataValues.rating) === rating);
+      const count = found ? parseInt(found.dataValues.count) : 0;
+      const percentage = totalReviews > 0 ? ((count / totalReviews) * 100).toFixed(1) : 0;
+      return {
+        rating,
+        count,
+        percentage: parseFloat(percentage)
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        totalReviews,
+        averageRating: parseFloat(averageRating),
+        ratingDistribution
+      }
+    });
+
+  } catch (error) {
+    console.error('Get product stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch review statistics'
+    });
+  }
+};
+
+// Get user's own reviews
+const getUserReviews = async (req, res) => {
   try {
     const userId = req.user.id;
     const { page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
 
-    const reviews = await Review.findAndCountAll({
+    const { count, rows } = await Review.findAndCountAll({
       where: { userId },
       include: [
-        { model: Product, as: "product", attributes: ["id", "name", "slug", "images"] }
+        {
+          model: Product,
+          as: 'product',
+          attributes: ['id', 'name']
+        }
       ],
+      order: [['createdAt', 'DESC']],
       limit: parseInt(limit),
-      offset: parseInt(offset),
-      order: [["createdAt", "DESC"]]
+      offset: parseInt(offset)
     });
 
-    return res.status(200).json({
-      message: "Your reviews fetched successfully",
-      status: "success",
-      data: {
-        reviews: reviews.rows,
-        pagination: {
-          total: reviews.count,
-          page: parseInt(page),
-          limit: parseInt(limit),
-          totalPages: Math.ceil(reviews.count / limit)
-        }
+    res.json({
+      success: true,
+      data: rows,
+      pagination: {
+        current: parseInt(page),
+        total: Math.ceil(count / limit),
+        count,
+        limit: parseInt(limit)
       }
     });
+
   } catch (error) {
-    console.error("Error fetching user reviews:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    console.error('Get user reviews error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch user reviews'
+    });
   }
+};
+
+// Admin: Moderate review
+const moderateReview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isApproved, rejectionReason } = req.body;
+
+    // Check admin permission
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required'
+      });
+    }
+
+    const review = await Review.findByPk(id);
+    if (!review) {
+      return res.status(404).json({
+        success: false,
+        message: 'Review not found'
+      });
+    }
+
+    await review.update({
+      isApproved,
+      rejectionReason: isApproved ? null : rejectionReason
+    });
+
+    res.json({
+      success: true,
+      message: `Review ${isApproved ? 'approved' : 'rejected'} successfully`,
+      data: review
+    });
+
+  } catch (error) {
+    console.error('Moderate review error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to moderate review'
+    });
+  }
+};
+
+export {
+  createReview,
+  getReviews,
+  getReviewById,
+  updateReview,
+  deleteReview,
+  getProductStats,
+  getUserReviews,
+  moderateReview
 };

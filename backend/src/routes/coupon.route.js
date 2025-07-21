@@ -17,6 +17,6 @@ router.delete('/:id',  removeCoupon);
 router.patch('/:id/restore',restoreCoupon);
 router.post('/create', createCoupon);
 router.put('/:id/update', updateCoupon);
-router.get('/:couponId/usage', getCouponUsage);
+router.get('/:couponId/usage', getCouponUsage); 
 
 export default router;
