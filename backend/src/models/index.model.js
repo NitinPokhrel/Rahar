@@ -10,7 +10,7 @@ import OrderItemDef from "./orderItem.model.js";
 import ProductDef from "./product.model.js";
 import ProductVariantDef from "./productVariant.model.js";
 import ReviewDef from "./review.model.js";
-import OrderCouponDef from "./orderCoupon.js";
+import OrderCouponDef from "./orderCoupon.model.js";
 
 import WishlistDef from "./wishlist.model.js";
 

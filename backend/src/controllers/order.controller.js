@@ -7,6 +7,7 @@ import {
   ProductVariant,
   Coupon,
   CouponUsage,
+  OrderCoupon,
 } from "../models/index.model.js";
 import { sequelize } from "../models/index.model.js";
 import { Cart } from "../models/index.model.js";
@@ -312,7 +313,6 @@ export const createOrder = async (req, res) => {
           : cartItem.product.price,
       });
 
-
       productsForDiscount.push({
         productId: cartItem.product.id,
         product: cartItem.product,
@@ -350,6 +350,18 @@ export const createOrder = async (req, res) => {
         paymentStatus: paymentMethod === "cashOnDelivery" ? "pending" : "paid",
       },
       { transaction }
+    );
+
+    await Promise.all(
+      coupenResult.appliedCoupons.map((item) =>
+        OrderCoupon.create(
+          {
+            orderId: order.id,
+            couponId: item,
+          },
+          { transaction }
+        )
+      )
     );
 
     await Promise.all(
