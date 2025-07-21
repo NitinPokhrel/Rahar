@@ -105,6 +105,8 @@ const User = (sequelize) => {
           },
         },
       },
+
+      
       phone: {
         type: DataTypes.STRING(20),
         validate: {
