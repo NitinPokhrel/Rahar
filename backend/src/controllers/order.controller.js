@@ -10,7 +10,6 @@ import {
 } from "../models/index.model.js";
 import { sequelize } from "../models/index.model.js";
 import { Cart } from "../models/index.model.js";
-import { applyCouponToOrder } from "./coupon.controller.js";
 
 async function getDiscountAmount(couponCodes, userId, products, transaction) {
   try {
@@ -280,26 +279,24 @@ export const createOrder = async (req, res) => {
       });
     }
 
-        let products = [];
-        let subtotal = 0;
+    let products = [];
+    let subtotal = 0;
 
-        // Process cart items
-        for (const itemId of items) {
-            const cartItem = await Cart.findOne({
-                where: {
-                    id: itemId,
-                    userId: userId,
-                },
-                include: [
-                    {
-                        association: "product",
-                    },
-                    {
-                        association: "variant",
-                    },
-                ],
-                transaction
-            });
+    for (const item of items) {
+      const cartItem = await Cart.findOne({
+        where: {
+          id: item,
+          userId: userId,
+        },
+        include: [
+          {
+            association: "product",
+          },
+          {
+            association: "variant",
+          },
+        ],
+      });
 
       if (!cartItem.id || !cartItem.product) {
         throw new Error("Cart item is invalid !!");
@@ -347,106 +344,91 @@ export const createOrder = async (req, res) => {
       { transaction }
     );
 
-        // Create order items with individual discounts
-        await Promise.all(
-            products.map((item) =>
-                OrderItem.create(
-                    {
-                        orderId: order.id,
-                        productId: item.productId,
-                        productVarientId: item.variant ? item.variant.id : null,
-                        quantity: item.quantity,
-                        price: item.variant ? item.variant.price : item.product.price,
-                        discountAmount: item.totalCouponDiscount || 0,
-                    },
-                    { transaction }
-                )
-            )
-        );
+    await Promise.all(
+      products.map((item) =>
+        OrderItem.create(
+          {
+            orderId: order.id,
+            productId: item.product,
+            productVarientId: item.variant,
+            quantity: item.stock,
+            price: item.price,
+          },
+          { transaction }
+        )
+      )
+    );
 
-        // Update stock quantities
-        for (const product of products) {
-            if (product.variant) {
-                await ProductVariant.decrement("stockQuantity", {
-                    by: product.quantity,
-                    where: { id: product.variant.id },
-                    transaction,
-                });
-            } else {
-                await Product.decrement("stockQuantity", {
-                    by: product.quantity,
-                    where: { id: product.product.id },
-                    transaction,
-                });
-            }
-        }
+    for (const product of products) {
+      // console.log(product)
 
-        // Clear cart items after successful order creation
-        // await Promise.all(
-        //     items.map(itemId => 
-        //         Cart.destroy({
-        //             where: {
-        //                 id: itemId,
-        //                 userId,
-        //             },
-        //             transaction
-        //         })
-        //     )
-        // );
-
-        await transaction.commit();
-
-        // Fetch complete order details
-        const completeOrder = await Order.findOne({
-            where: {
-                id: order.id,
-                userId,
-            },
-            include: [
-                {
-                    model: OrderItem,
-                    as: "items",
-                    include: [
-                        {
-                            model: Product,
-                            as: "product",
-                            attributes: ["id", "name", "images"],
-                        },
-                        {
-                            model: ProductVariant,
-                            as: "productVarient",
-                            attributes: ["id", "name", "attributes"],
-                        },
-                    ],
-                },
-            ],
+      if (product.variant) {
+        await ProductVariant.decrement("stockQuantity", {
+          by: product.stock,
+          where: { id: product.variant },
+          transaction,
         });
-
-        return res.status(201).json({
-            success: true,
-            status: "Order Created",
-            message: "Order created successfully",
-            data: {
-                order: completeOrder,
-                couponInfo: couponResult ? {
-                    appliedCoupons: couponResult.appliedCoupons,
-                    failedCoupons: couponResult.failedCoupons,
-                    totalDiscountAmount: couponResult.totalDiscountAmount
-                } : null
-            }
+      } else {
+        await Product.decrement("stockQuantity", {
+          by: product.stock,
+          where: { id: product.product },
+          transaction,
         });
-        
-    } catch (error) {
-        await transaction.rollback();
-        console.error("Error creating order:", error);
-        res.status(500).json({
-            success: false,
-            status: "Order Creation Failed",
-            message: error.message,
-        });
+      }
     }
-};
 
+    for (const item of items) {
+      await Cart.destroy({
+        where: {
+          id: item,
+          userId,
+        },
+      });
+    }
+
+    await transaction.commit();
+
+    const completeOrder = await Order.findOne({
+      where: {
+        id: order.id,
+        userId,
+      },
+      include: [
+        {
+          model: OrderItem,
+          as: "items",
+          include: [
+            {
+              model: Product,
+              as: "product",
+              attributes: ["id", "name", "images"],
+            },
+            {
+              model: ProductVariant,
+              as: "productVarient",
+              attributes: ["id", "name", "attributes"],
+            },
+          ],
+        },
+      ],
+    });
+
+    return res.status(201).json({
+      success: true,
+      status: "Order Created",
+      message: "Order created successfully",
+      data: completeOrder,
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error("Error creating order:", error);
+    res.status(500).send({
+      success: false,
+      status: "Order Creation Failed",
+      message: error.message,
+    });
+  }
+};
 
 export const getSingleOrder = async (req, res) => {
   try {
