@@ -280,6 +280,7 @@ export const createOrder = async (req, res) => {
     }
 
     let products = [];
+    let productsForDiscount = [];
     let subtotal = 0;
 
     for (const item of items) {
@@ -298,7 +299,7 @@ export const createOrder = async (req, res) => {
         ],
       });
 
-      if (!cartItem.id || !cartItem.product) {
+      if (!cartItem || !cartItem.id || !cartItem.product) {
         throw new Error("Cart item is invalid !!");
       }
 
@@ -309,6 +310,14 @@ export const createOrder = async (req, res) => {
         price: cartItem.variant
           ? cartItem.variant.price
           : cartItem.product.price,
+      });
+
+
+      productsForDiscount.push({
+        productId: cartItem.product.id,
+        product: cartItem.product,
+        variant: cartItem.variant,
+        quantity: cartItem.quantity,
       });
 
       subtotal +=
@@ -323,7 +332,7 @@ export const createOrder = async (req, res) => {
       coupenResult = await getDiscountAmount(
         couponCodes,
         userId,
-        products,
+        productsForDiscount,
         transaction
       );
     }
@@ -332,10 +341,9 @@ export const createOrder = async (req, res) => {
       {
         userId,
         subtotal,
-        discountAmount: coupenResult?.amount,
+        discountAmount: coupenResult?.totalDiscountAmount,
         address,
         paymentMethod,
-        couponId: coupenResult?.id,
         phone,
         notes,
         status: paymentMethod === "cashOnDelivery" ? "confirmed" : "pending",

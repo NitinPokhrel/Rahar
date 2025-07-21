@@ -1,17 +1,18 @@
-import SequelizePkg from 'sequelize';
-import sequelize from '../db/db.js';
-import UserDef from './user.model.js';
-import CartDef from './cart.model.js';
-import CategoryDef from './category.model.js';
-import CouponDef from './coupon.model.js';
-import CouponUsageDef from './couponUsage.model.js';
-import OrderDef from './order.model.js';
-import OrderItemDef from './orderItem.model.js';
-import ProductDef from './product.model.js';
-import ProductVariantDef from './productVariant.model.js';
-import ReviewDef from './review.model.js';
+import SequelizePkg from "sequelize";
+import sequelize from "../db/db.js";
+import UserDef from "./user.model.js";
+import CartDef from "./cart.model.js";
+import CategoryDef from "./category.model.js";
+import CouponDef from "./coupon.model.js";
+import CouponUsageDef from "./couponUsage.model.js";
+import OrderDef from "./order.model.js";
+import OrderItemDef from "./orderItem.model.js";
+import ProductDef from "./product.model.js";
+import ProductVariantDef from "./productVariant.model.js";
+import ReviewDef from "./review.model.js";
+import OrderCouponDef from "./orderCoupon.js";
 
-import WishlistDef from './wishlist.model.js';
+import WishlistDef from "./wishlist.model.js";
 
 const { Sequelize } = SequelizePkg;
 
@@ -21,6 +22,7 @@ const models = {
   Category: CategoryDef(sequelize),
   Coupon: CouponDef(sequelize),
   CouponUsage: CouponUsageDef(sequelize),
+  OrderCoupon: OrderCouponDef(sequelize),
 
   Order: OrderDef(sequelize),
   OrderItem: OrderItemDef(sequelize),
@@ -33,7 +35,7 @@ const models = {
 
 // Initialize associations
 Object.values(models).forEach((model) => {
-  if (typeof model.associate === 'function') {
+  if (typeof model.associate === "function") {
     model.associate(models);
   }
 });
@@ -45,13 +47,14 @@ const {
   Category,
   Coupon,
   CouponUsage,
-  
+  OrderCoupon,
+
   Order,
   OrderItem,
   Product,
   ProductVariant,
   Review,
-  
+
   Wishlist,
 } = models;
 
@@ -65,7 +68,7 @@ export {
   Category,
   Coupon,
   CouponUsage,
-  
+  OrderCoupon,
   Order,
   OrderItem,
   Product,

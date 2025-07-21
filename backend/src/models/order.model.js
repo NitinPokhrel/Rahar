@@ -4,8 +4,15 @@ const Order = (sequelize) => {
   class Order extends Model {
     static associate(models) {
       Order.belongsTo(models.User, { foreignKey: "userId", as: "user" });
-      Order.belongsTo(models.Coupon, { foreignKey: "couponId", as: "coupon" });
       Order.hasMany(models.OrderItem, { foreignKey: "orderId", as: "items" });
+
+      // New association: many-to-many with coupons through OrderCoupon
+      Order.belongsToMany(models.Coupon, {
+        through: models.OrderCoupon,
+        foreignKey: "orderId",
+        otherKey: "couponId",
+        as: "coupons",
+      });
     }
   }
 
@@ -26,7 +33,6 @@ const Order = (sequelize) => {
         allowNull: false,
         references: { model: "users", key: "id" },
       },
-
       status: {
         type: DataTypes.ENUM(
           "pending",
@@ -45,7 +51,6 @@ const Order = (sequelize) => {
         defaultValue: "pending",
         allowNull: false,
       },
-
       paymentMethod: {
         type: DataTypes.ENUM("stripe", "qrBank", "cashOnDelivery"),
         allowNull: false,
@@ -75,10 +80,8 @@ const Order = (sequelize) => {
         },
       },
 
-      couponId: {
-        type: DataTypes.UUID,
-        references: { model: "coupons", key: "id" },
-      },
+      // Removed appliedCoupons, moved to OrderCoupon table
+
       phone: {
         type: DataTypes.STRING(20),
         validate: {
@@ -163,14 +166,10 @@ const Order = (sequelize) => {
         { fields: ["userId"] },
         { fields: ["status"] },
         { fields: ["paymentStatus"] },
-        { fields: ["couponId"] },
         { fields: ["createdAt"] },
       ],
       hooks: {
         beforeValidate: (order) => {
-          // Generate a unique order number like: ORD-20250627-ABC123
-
-          console.log("✅ beforeCreate hook running");
           const randomSuffix = Math.random()
             .toString(36)
             .substring(2, 8)
