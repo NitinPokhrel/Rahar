@@ -46,11 +46,11 @@ app.get("/test", (req, res) => {
 const createUserExample = {
   clerkUserId: "user_2abc123def453",
   id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  firstName: "         Photo        ",
-  lastName: "Test         ",
-  email: "            john121.doe@example.com",
+  firstName: "Photo",
+  lastName: "Test",
+  email: "john121.doe@example.com",
   password: "securePassword123",
-  phone: "+1234567890       ",
+  phone: "+1234567890",
   dateOfBirth: "1990-05-15",
   gender: "male",
   role: "admin",
@@ -61,10 +61,14 @@ const createUserExample = {
     fullAddress: "123 Main Street, Apt 4B, Los Angeles, CA 90210",
   },
 };
+
+
 async function authenticateUser(req, res, next) {
   req.user = createUserExample;
   next();
 }
+
+
 app.use(authenticateUser);
 
 // API routes
