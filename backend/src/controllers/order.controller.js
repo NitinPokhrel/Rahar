@@ -29,6 +29,8 @@ export const createOrder = async (req, res) => {
     let products = [];
     let productsForDiscount = [];
     let subtotal = 0;
+    let shippingAmount = process.env.SHIPPING_AMOUNT || 180;
+
 
     for (const item of items) {
       const cartItem = await Cart.findOne({
@@ -91,6 +93,7 @@ export const createOrder = async (req, res) => {
         address,
         paymentMethod,
         phone,
+        shippingAmount,
         notes,
         status: paymentMethod === "cashOnDelivery" ? "confirmed" : "pending",
         paymentStatus: paymentMethod === "cashOnDelivery" ? "pending" : "paid",
@@ -98,17 +101,20 @@ export const createOrder = async (req, res) => {
       { transaction }
     );
 
+    // console.log(coupenResult)
+
     await Promise.all(
       coupenResult.appliedCoupons.map((item) =>
         OrderCoupon.create(
           {
             orderId: order.id,
-            couponId: item,
+            couponId: item.couponId,
           },
           { transaction }
         )
       )
     );
+
 
     await Promise.all(
       products.map((item) =>
