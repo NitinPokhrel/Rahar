@@ -9,8 +9,6 @@ const Coupon = (sequelize) => {
         as: "usages",
       });
     }
-
-
   }
 
   Coupon.init(
