@@ -14,9 +14,10 @@ export const authMiddleware = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
+
     // Verify user still exists and is active
-    const auth = await Auth.findByPk(decoded.authId, {
+    const auth = await Auth.findOne({
+      where: { id: decoded.authId },
       include: [{ model: User, as: "profile" }],
     });
 
@@ -43,7 +44,7 @@ export const authMiddleware = async (req, res, next) => {
         message: "Invalid token",
       });
     }
-    
+
     if (error.name === "TokenExpiredError") {
       return res.status(401).json({
         success: false,
@@ -71,10 +72,13 @@ export const adminMiddleware = (req, res, next) => {
 // Middleware to check specific permissions
 export const permissionMiddleware = (requiredPermission) => {
   return (req, res, next) => {
-    if (req.user.role === "admin" && req.user.permissions.includes(requiredPermission)) {
+    if (
+      req.user.role === "admin" &&
+      req.user.permissions.includes(requiredPermission)
+    ) {
       return next();
     }
-    
+
     return res.status(403).json({
       success: false,
       message: `${requiredPermission} permission required`,

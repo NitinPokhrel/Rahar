@@ -4,10 +4,10 @@ const User = (sequelize) => {
   class User extends Model {
     static associate(models) {
       // Relationship with Auth model
-      User.belongsTo(models.Auth, { 
-        foreignKey: "authId", 
+      User.belongsTo(models.Auth, {
+        foreignKey: "authId",
         as: "auth",
-        onDelete: "CASCADE"
+        onDelete: "CASCADE",
       });
 
       // Existing relationships
@@ -44,11 +44,17 @@ const User = (sequelize) => {
 
     updateProfile(profileData) {
       const allowedFields = [
-        'firstName', 'lastName', 'phone', 'dateOfBirth', 
-        'gender', 'address', 'avatar', 'preferences'
+        "firstName",
+        "lastName",
+        "phone",
+        "dateOfBirth",
+        "gender",
+        "address",
+        "avatar",
+        "preferences",
       ];
-      
-      Object.keys(profileData).forEach(key => {
+
+      Object.keys(profileData).forEach((key) => {
         if (allowedFields.includes(key)) {
           this[key] = profileData[key];
         }
@@ -68,8 +74,8 @@ const User = (sequelize) => {
         allowNull: false,
         unique: true,
         references: {
-          model: 'auth',
-          key: 'id'
+          model: "auth",
+          key: "id",
         },
         validate: {
           notEmpty: { msg: "Auth ID is required" },
@@ -255,10 +261,15 @@ const User = (sequelize) => {
         },
         beforeSave: (user) => {
           // Check if profile is complete
-          const requiredFields = ['firstName', 'lastName', 'phone', 'address'];
-          const isComplete = requiredFields.every(field => {
-            if (field === 'address') {
-              return user.address && user.address.province && user.address.city && user.address.fullAddress;
+          const requiredFields = ["firstName", "lastName", "phone", "address"];
+          const isComplete = requiredFields.every((field) => {
+            if (field === "address") {
+              return (
+                user.address &&
+                user.address.province &&
+                user.address.city &&
+                user.address.fullAddress
+              );
             }
             return user[field] && user[field].toString().trim().length > 0;
           });

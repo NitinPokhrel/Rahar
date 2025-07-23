@@ -374,7 +374,10 @@ export const sendEmailVerification = async (req, res) => {
   try {
     const { authId } = req.user; // From auth middleware
 
-    const auth = await Auth.findByPk(authId);
+    const auth = await Auth.findOne({
+      where: { id: authId },
+    });
+
     if (!auth) {
       return res.status(404).json({
         success: false,
@@ -562,7 +565,9 @@ export const changePassword = async (req, res) => {
     const { authId } = req.user; // From auth middleware
     const { currentPassword, newPassword } = req.body;
 
-    const auth = await Auth.findByPk(authId);
+    const auth = await Auth.findOne({
+      where: { id: authId },
+    });
 
     if (!auth || auth.provider !== "email") {
       return res.status(400).json({
@@ -599,7 +604,8 @@ export const getCurrentUser = async (req, res) => {
   try {
     const { authId } = req.user; // From auth middleware
 
-    const auth = await Auth.findByPk(authId, {
+    const auth = await Auth.findOne({
+      where: { id: authId },
       include: [{ model: User, as: "profile" }],
       attributes: {
         exclude: [
@@ -655,7 +661,10 @@ export const suspendAccount = async (req, res) => {
     const { authId } = req.params;
     const { reason } = req.body;
 
-    const auth = await Auth.findByPk(authId);
+    const auth = await Auth.findOne({
+      where: { id: authId },
+    });
+
     if (!auth) {
       return res.status(404).json({
         success: false,
@@ -685,7 +694,10 @@ export const reactivateAccount = async (req, res) => {
   try {
     const { authId } = req.params;
 
-    const auth = await Auth.findByPk(authId);
+    const auth = await Auth.findOne({
+      where: { id: authId },
+    });
+
     if (!auth) {
       return res.status(404).json({
         success: false,
