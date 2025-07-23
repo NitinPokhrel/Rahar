@@ -4,17 +4,17 @@ import {
 
   createReview,
   deleteReview,
+  deleteReviewByAdmin,
   getProductStats,
   getReviewById,
   getReviews,
   getUserReviews,
-  moderateReview,
   updateReview
 } from "../controllers/review.controller.js";
 
 const router = Router();
 
-// ✅ Create a new review (only logged-in users)
+// public routes
 router.post('/', createReview);
 router.get('/product/:productId/stats', getProductStats);
 router.put('/:id', updateReview);
@@ -27,6 +27,6 @@ router.get('/user/:userId', getUserReviews);
 // admin
 
 router.get('/', getReviews);
-router.patch('/:id/moderate',  moderateReview);
+router.delete('/:id/admin',  deleteReviewByAdmin);
 
 export default router;

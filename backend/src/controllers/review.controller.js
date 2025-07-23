@@ -1,8 +1,8 @@
-import { Review, User, Product, Order } from '../models/index.model.js';
+import { Review, User, Product, Order, OrderItem } from '../models/index.model.js';
 import { Op } from 'sequelize';
 
 // Create a new review
-const createReview = async (req, res) => {
+export const createReview = async (req, res) => {
   try {
     const { productId, orderId, rating, comment } = req.body;
     const userId = req.user.id;
@@ -108,9 +108,8 @@ const createReview = async (req, res) => {
   }
 };
 
-
 // Get reviews with pagination and filters
-const getReviews = async (req, res) => {
+export const getReviews = async (req, res) => {
   try {
     const { 
       page = 1, 
@@ -170,7 +169,7 @@ const getReviews = async (req, res) => {
 };
 
 // Get single review by ID
-const getReviewById = async (req, res) => {
+export const getReviewById = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -216,7 +215,7 @@ const getReviewById = async (req, res) => {
 };
 
 // Update review (only by owner)
-const updateReview = async (req, res) => {
+export const updateReview = async (req, res) => {
   try {
     const { id } = req.params;
     const { rating, comment } = req.body;
@@ -271,7 +270,7 @@ const updateReview = async (req, res) => {
 };
 
 // Delete review (only by owner)
-const deleteReview = async (req, res) => {
+export const deleteReview = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
@@ -304,7 +303,7 @@ const deleteReview = async (req, res) => {
 };
 
 // Get product review statistics
-const getProductStats = async (req, res) => {
+export const getProductStats = async (req, res) => {
   try {
     const { productId } = req.params;
 
@@ -366,7 +365,7 @@ const getProductStats = async (req, res) => {
 };
 
 // Get user's own reviews
-const getUserReviews = async (req, res) => {
+export const getUserReviews = async (req, res) => {
   try {
     const userId = req.user.id;
     const { page = 1, limit = 10 } = req.query;
@@ -406,55 +405,25 @@ const getUserReviews = async (req, res) => {
   }
 };
 
-// Admin: Moderate review
-const moderateReview = async (req, res) => {
+export const deleteReviewByAdmin = async (req, res) => {
+  const { id } = req.params;
+
   try {
-    const { id } = req.params;
-    const { isApproved, rejectionReason } = req.body;
-
-    // Check admin permission
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Admin access required'
-      });
-    }
-
     const review = await Review.findByPk(id);
+
     if (!review) {
-      return res.status(404).json({
-        success: false,
-        message: 'Review not found'
-      });
+      return res.status(404).json({ message: 'Review not found' });
     }
 
-    await review.update({
-      isApproved,
-      rejectionReason: isApproved ? null : rejectionReason
-    });
+    await review.destroy();
 
-    res.json({
-      success: true,
-      message: `Review ${isApproved ? 'approved' : 'rejected'} successfully`,
-      data: review
-    });
-
+    res.status(200).json({ message: 'Review deleted successfully' });
   } catch (error) {
-    console.error('Moderate review error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to moderate review'
-    });
+    console.error('Admin delete review error:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
-export {
-  createReview,
-  getReviews,
-  getReviewById,
-  updateReview,
-  deleteReview,
-  getProductStats,
-  getUserReviews,
-  moderateReview
-};
+
+
+
