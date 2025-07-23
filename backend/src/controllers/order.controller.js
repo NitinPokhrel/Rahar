@@ -31,7 +31,6 @@ export const createOrder = async (req, res) => {
     let subtotal = 0;
     let shippingAmount = process.env.SHIPPING_AMOUNT || 180;
 
-
     for (const item of items) {
       const cartItem = await Cart.findOne({
         where: {
@@ -114,7 +113,6 @@ export const createOrder = async (req, res) => {
         )
       )
     );
-
 
     await Promise.all(
       products.map((item) =>

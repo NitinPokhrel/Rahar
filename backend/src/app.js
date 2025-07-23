@@ -1,7 +1,6 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import { clerkMiddleware } from "@clerk/express";
 import sequelize from "./db/db.js";
 
 // import router
@@ -16,6 +15,7 @@ import productRouter from "./routes/product.route.js";
 import reviewRouter from "./routes/review.route.js";
 import searchRouter from "./routes/search.route.js";
 import wishlistRouter from "./routes/wishlist.route.js";
+import authRouter from "./routes/auth.route.js";
 
 const PORT = process.env.PORT || 8000;
 
@@ -32,8 +32,6 @@ app.use(
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-
-app.use(clerkMiddleware());
 
 app.get("/test", (req, res) => {
   res.status(200).json({
@@ -62,12 +60,10 @@ const createUserExample = {
   },
 };
 
-
 async function authenticateUser(req, res, next) {
   req.user = createUserExample;
   next();
 }
-
 
 app.use(authenticateUser);
 
@@ -82,6 +78,7 @@ app.use("/api/v1/products", productRouter);
 app.use("/api/v1/reviews", reviewRouter);
 app.use("/api/v1/search", searchRouter);
 app.use("/api/v1/users", userRouter);
+app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/wishlists", wishlistRouter);
 
 // Database connection and server startup

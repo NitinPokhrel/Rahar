@@ -1,9 +1,16 @@
 import { DataTypes, Model } from "sequelize";
-import bcrypt from "bcryptjs";
 
 const User = (sequelize) => {
   class User extends Model {
     static associate(models) {
+      // Relationship with Auth model
+      User.belongsTo(models.Auth, { 
+        foreignKey: "authId", 
+        as: "auth",
+        onDelete: "CASCADE"
+      });
+
+      // Existing relationships
       User.hasMany(models.Order, { foreignKey: "userId", as: "orders" });
       User.hasMany(models.Cart, { foreignKey: "userId", as: "cartItems" });
       User.hasMany(models.Review, { foreignKey: "userId", as: "reviews" });
@@ -13,25 +20,15 @@ const User = (sequelize) => {
       });
     }
 
-    async checkPassword(password) {
-      return await bcrypt.compare(password, this.password);
-    }
-
-    async hashPassword() {
-      if (this.changed("password")) {
-        this.password = await bcrypt.hash(this.password, 12);
-      }
-    }
-
     trimFields() {
-      const fieldsToTrim = ["firstName", "lastName", "email", "phone"];
+      const fieldsToTrim = ["firstName", "lastName", "phone"];
       fieldsToTrim.forEach((field) => {
         if (this[field] && typeof this[field] === "string") {
           this[field] = this[field].trim();
         }
       });
 
-      // Optional: Trim address fields too
+      // Trim address fields
       if (this.address) {
         ["province", "city", "fullAddress"].forEach((field) => {
           if (this.address[field] && typeof this.address[field] === "string") {
@@ -39,6 +36,23 @@ const User = (sequelize) => {
           }
         });
       }
+    }
+
+    getFullName() {
+      return `${this.firstName} ${this.lastName}`.trim();
+    }
+
+    updateProfile(profileData) {
+      const allowedFields = [
+        'firstName', 'lastName', 'phone', 'dateOfBirth', 
+        'gender', 'address', 'avatar', 'preferences'
+      ];
+      
+      Object.keys(profileData).forEach(key => {
+        if (allowedFields.includes(key)) {
+          this[key] = profileData[key];
+        }
+      });
     }
   }
 
@@ -49,12 +63,16 @@ const User = (sequelize) => {
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
       },
-      clerkUserId: {
-        type: DataTypes.STRING,
+      authId: {
+        type: DataTypes.UUID,
         allowNull: false,
         unique: true,
+        references: {
+          model: 'auth',
+          key: 'id'
+        },
         validate: {
-          notEmpty: { msg: "Clerk user ID is required" },
+          notEmpty: { msg: "Auth ID is required" },
         },
       },
       firstName: {
@@ -79,34 +97,6 @@ const User = (sequelize) => {
           },
         },
       },
-      email: {
-        type: DataTypes.STRING(100),
-        allowNull: false,
-        unique: { msg: "Email already exists" },
-        set(value) {
-          if (typeof value === "string") {
-            this.setDataValue("email", value.trim().toLowerCase());
-          }
-        },
-        validate: {
-          isEmail: { msg: "Invalid email format" },
-          notEmpty: { msg: "Email is required" },
-        },
-      },
-
-      password: {
-        type: DataTypes.STRING(255),
-        allowNull: false,
-        validate: {
-          notEmpty: { msg: "Password is required" },
-          len: {
-            args: [8, 255],
-            msg: "Password must be at least 8 characters",
-          },
-        },
-      },
-
-      
       phone: {
         type: DataTypes.STRING(20),
         validate: {
@@ -148,21 +138,14 @@ const User = (sequelize) => {
         allowNull: false,
         defaultValue: [],
       },
-      isActive: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: true,
-      },
-      emailVerified: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: false,
-      },
       address: {
         type: DataTypes.JSON,
-        allowNull: false,
+        allowNull: true, // Made optional since users might not provide address immediately
         validate: {
           isValidAddress(value) {
+            if (!value) return; // Allow null/undefined
+
             if (
-              !value ||
               typeof value !== "object" ||
               !value.province ||
               !value.city ||
@@ -231,6 +214,34 @@ const User = (sequelize) => {
           },
         },
       },
+      preferences: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: {
+          notifications: {
+            email: true,
+            push: true,
+            orderUpdates: true,
+            promotions: false,
+          },
+          privacy: {
+            profileVisible: false,
+            showOnlineStatus: false,
+          },
+          display: {
+            theme: "light",
+            language: "en",
+          },
+        },
+      },
+      isProfileComplete: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+      },
+      profileCompletedAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
     },
     {
       sequelize,
@@ -242,15 +253,48 @@ const User = (sequelize) => {
         beforeValidate: (user) => {
           user.trimFields();
         },
-        beforeSave: async (user) => {
-          await user.hashPassword();
+        beforeSave: (user) => {
+          // Check if profile is complete
+          const requiredFields = ['firstName', 'lastName', 'phone', 'address'];
+          const isComplete = requiredFields.every(field => {
+            if (field === 'address') {
+              return user.address && user.address.province && user.address.city && user.address.fullAddress;
+            }
+            return user[field] && user[field].toString().trim().length > 0;
+          });
+
+          if (isComplete && !user.isProfileComplete) {
+            user.isProfileComplete = true;
+            user.profileCompletedAt = new Date();
+          } else if (!isComplete && user.isProfileComplete) {
+            user.isProfileComplete = false;
+            user.profileCompletedAt = null;
+          }
         },
       },
       indexes: [
-        { fields: ["email"] },
+        { fields: ["authId"] },
         { fields: ["role"] },
-        { fields: ["isActive"] },
+        { fields: ["isProfileComplete"] },
+        { fields: ["createdAt"] },
       ],
+      scopes: {
+        complete: {
+          where: {
+            isProfileComplete: true,
+          },
+        },
+        admins: {
+          where: {
+            role: "admin",
+          },
+        },
+        customers: {
+          where: {
+            role: "customer",
+          },
+        },
+      },
     }
   );
 

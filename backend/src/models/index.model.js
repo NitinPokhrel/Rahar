@@ -11,6 +11,7 @@ import ProductDef from "./product.model.js";
 import ProductVariantDef from "./productVariant.model.js";
 import ReviewDef from "./review.model.js";
 import OrderCouponDef from "./orderCoupon.model.js";
+import AuthDef from "./auth.model.js";
 
 import WishlistDef from "./wishlist.model.js";
 
@@ -23,6 +24,7 @@ const models = {
   Coupon: CouponDef(sequelize),
   CouponUsage: CouponUsageDef(sequelize),
   OrderCoupon: OrderCouponDef(sequelize),
+  Auth: AuthDef(sequelize),
 
   Order: OrderDef(sequelize),
   OrderItem: OrderItemDef(sequelize),
@@ -43,6 +45,7 @@ Object.values(models).forEach((model) => {
 // Extract individual models for named exports
 const {
   User,
+  Auth,
   Cart,
   Category,
   Coupon,
@@ -64,6 +67,7 @@ export {
   Sequelize,
   models,
   User,
+  Auth,
   Cart,
   Category,
   Coupon,
