@@ -65,20 +65,50 @@ export const registerWithEmail = async (req, res) => {
 
     const emailOptions = {
       to: auth.email,
-      subject: "Verify Your Email Address",
+      subject: "Confirm Your Email to Start Shopping in Style!",
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>Welcome to ${process.env.COMPANY_NAME}!</h2>
-          <p>Thank you for registering. Please verify your email address by clicking the link below:</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${verificationUrl}" style="background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">Verify Email</a>
-          </div>
-          <p>Or copy and paste this link in your browser:</p>
-          <p style="word-break: break-all; color: #666;">${verificationUrl}</p>
-          <p>This link will expire in 24 hours.</p>
-          <p>If you didn't create this account, please ignore this email.</p>
+    <div style="background-color: #f9f9f9; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #333; padding: 40px 20px;">
+      <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 5px 25px rgba(0,0,0,0.08);">
+        <div style="background-color: #000; color: #fff; padding: 30px 40px;">
+          <h1 style="margin: 0; font-size: 28px; letter-spacing: 1px;">Welcome to ${
+            process.env.COMPANY_NAME
+          }</h1>
+          <p style="margin-top: 10px; font-size: 16px;">Where fashion meets your style.</p>
         </div>
-      `,
+
+        <div style="padding: 30px 40px;">
+          <p style="font-size: 16px; margin-bottom: 20px;">
+            Hi there! We're thrilled to have you on board. To start exploring the latest trends and exclusive deals, please verify your email address.
+          </p>
+
+          <div style="text-align: center; margin: 40px 0;">
+            <a href="${verificationUrl}" style="background-color: #ff3366; color: #fff; font-size: 16px; font-weight: bold; padding: 14px 28px; border-radius: 6px; text-decoration: none; box-shadow: 0 4px 14px rgba(255, 51, 102, 0.3);">
+              Verify My Email
+            </a>
+          </div>
+
+          <p style="font-size: 14px; color: #777;">Or copy and paste this link into your browser:</p>
+          <p style="word-break: break-all; font-size: 13px; color: #555; background-color: #f1f1f1; padding: 10px; border-radius: 6px;">
+            ${verificationUrl}
+          </p>
+
+          <p style="font-size: 13px; color: #999; margin-top: 30px;">
+            This link will expire in 24 hours for your security.
+          </p>
+          <p style="font-size: 13px; color: #999;">
+            If you didn’t sign up for an account, feel free to ignore this email.
+          </p>
+        </div>
+
+        <div style="background-color: #fafafa; padding: 20px 40px; text-align: center; font-size: 12px; color: #aaa;">
+          &copy; ${new Date().getFullYear()} ${
+        process.env.COMPANY_NAME
+      }. All rights reserved.<br>
+          Fashion never sleeps — and neither do we.
+        </div>
+      </div>
+    </div>
+  `,
     };
 
     sendMail(emailOptions);
@@ -399,19 +429,63 @@ export const sendEmailVerification = async (req, res) => {
 
     const emailOptions = {
       to: auth.email,
-      subject: "Verify Your Email Address",
+      subject: "✨ Verify Your Email to Unlock Exclusive Fashion Drops",
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>Email Verification</h2>
-          <p>Please verify your email address by clicking the link below:</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${verificationUrl}" style="background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">Verify Email</a>
-          </div>
-          <p>Or copy and paste this link in your browser:</p>
-          <p style="word-break: break-all; color: #666;">${verificationUrl}</p>
-          <p>This link will expire in 24 hours.</p>
-        </div>
-      `,
+    <div style="margin:0; padding:0; background:#f4f4f4; font-family:'Helvetica Neue', Arial, sans-serif;">
+      <table align="center" cellpadding="0" cellspacing="0" width="100%" style="max-width:600px; margin:auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 8px 30px rgba(0,0,0,0.08);">
+        
+        <!-- Header -->
+        <tr>
+          <td style="background:linear-gradient(90deg,#000000,#1a1a1a); color:#ffffff; padding:40px 30px; text-align:center;">
+            <h2 style="margin:0; font-size:26px; letter-spacing:1px;">Confirm Your Email</h2>
+            <p style="margin-top:10px; font-size:15px; font-style:italic; color:#ccc;">Let the shopping begin at <strong>${
+              process.env.COMPANY_NAME
+            }</strong></p>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:40px 30px;">
+            <p style="font-size:16px; color:#333; margin-bottom:20px;">
+              Thanks for joining us! You're one click away from stepping into a world of trendsetting fashion.
+            </p>
+
+            <p style="font-size:16px; color:#333; margin-bottom:30px;">
+              Please verify your email by clicking the button below:
+            </p>
+
+            <div style="text-align:center; margin: 40px 0;">
+              <a href="${verificationUrl}" style="background-color:#ff3366; color:white; padding:14px 32px; font-size:16px; border-radius:8px; text-decoration:none; display:inline-block; font-weight:bold; box-shadow:0 4px 14px rgba(255,51,102,0.4);">
+                ✅ Verify Email Now
+              </a>
+            </div>
+
+            <p style="font-size:14px; color:#666; margin-bottom:8px;">Or copy and paste this link into your browser:</p>
+            <p style="font-size:13px; color:#888; background:#f1f1f1; padding:10px; border-radius:6px; word-break:break-word;">
+              ${verificationUrl}
+            </p>
+
+            <p style="font-size:13px; color:#999; margin-top:30px;">
+              This link will expire in <strong>24 hours</strong> for security reasons.
+              If you didn’t request this, you can safely ignore it.
+            </p>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="background:#fafafa; text-align:center; padding:20px; font-size:12px; color:#aaa;">
+            &copy; ${new Date().getFullYear()} ${
+        process.env.COMPANY_NAME
+      }. All rights reserved.<br/>
+            Stay fierce. Stay fashionable.
+          </td>
+        </tr>
+
+      </table>
+    </div>
+  `,
     };
 
     sendMail(emailOptions);
@@ -490,20 +564,61 @@ export const requestPasswordReset = async (req, res) => {
 
     const emailOptions = {
       to: auth.email,
-      subject: "Password Reset Request",
+      subject: "🛡️ Reset Your Password Securely",
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>Password Reset</h2>
-          <p>You requested a password reset. Click the link below to reset your password:</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${resetUrl}" style="background-color: #dc3545; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">Reset Password</a>
-          </div>
-          <p>Or copy and paste this link in your browser:</p>
-          <p style="word-break: break-all; color: #666;">${resetUrl}</p>
-          <p>This link will expire in 10 minutes.</p>
-          <p>If you didn't request this, please ignore this email.</p>
-        </div>
-      `,
+    <div style="margin:0; padding:0; background:#f4f4f4; font-family:'Helvetica Neue', Arial, sans-serif;">
+      <table align="center" cellpadding="0" cellspacing="0" width="100%" style="max-width:600px; margin:auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 8px 30px rgba(0,0,0,0.08);">
+        
+        <!-- Header -->
+        <tr>
+          <td style="background:linear-gradient(90deg,#1a1a1a,#000000); color:#ffffff; padding:40px 30px; text-align:center;">
+            <h2 style="margin:0; font-size:26px;">Password Reset Request</h2>
+            <p style="margin-top:10px; font-size:14px; color:#ccc;">A stylish wardrobe is forever. Passwords, not so much.</p>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:40px 30px;">
+            <p style="font-size:16px; color:#333; margin-bottom:20px;">
+              Hello, we received a request to reset your password associated with your account at <strong>${
+                process.env.COMPANY_NAME
+              }</strong>.
+            </p>
+            <p style="font-size:16px; color:#333; margin-bottom:30px;">
+              If you made this request, click the button below to reset your password:
+            </p>
+
+            <div style="text-align:center; margin: 40px 0;">
+              <a href="${resetUrl}" style="background-color:#dc3545; color:white; padding:14px 36px; font-size:16px; border-radius:8px; text-decoration:none; font-weight:bold; box-shadow:0 4px 14px rgba(220,53,69,0.3); display:inline-block;">
+                🔐 Reset My Password
+              </a>
+            </div>
+
+            <p style="font-size:14px; color:#666; margin-bottom:10px;">Or copy and paste this link into your browser:</p>
+            <p style="font-size:13px; color:#888; background:#f1f1f1; padding:10px; border-radius:6px; word-break:break-word;">
+              ${resetUrl}
+            </p>
+
+            <p style="font-size:13px; color:#999; margin-top:30px;">
+              This link is valid for <strong>10 minutes</strong>. If you didn’t request a password reset, you can safely ignore this email.
+            </p>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="background:#fafafa; text-align:center; padding:20px; font-size:12px; color:#aaa;">
+            &copy; ${new Date().getFullYear()} ${
+        process.env.COMPANY_NAME
+      }. All rights reserved.<br/>
+            Your privacy. Your style. Your security.
+          </td>
+        </tr>
+
+      </table>
+    </div>
+  `,
     };
 
     sendMail(emailOptions);

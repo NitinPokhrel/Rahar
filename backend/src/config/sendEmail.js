@@ -6,7 +6,10 @@ import { SendMailClient } from "zeptomail";
 const url = "api.zeptomail.com/";
 const token = process.env.ZEPTOMAIL_API_KEY;
 
-const client = new SendMailClient({ url, token });
+const client = new SendMailClient({
+  url,
+  token: token,
+});
 
 export function sendMail(mailOptions) {
   if (
@@ -34,6 +37,10 @@ export function sendMail(mailOptions) {
       subject: mailOptions.subject,
       htmlbody: mailOptions.html,
     })
-    .then(() => console.log("Email sent successfully"))
-    .catch((error) => console.error("Email failed to send", error));
+    .then(() => {
+      if (process.env.status === "development") {
+        console.log("Email sent successfully in development mode");
+      }
+    })
+    .catch((error) => console.error("Email failed to send", error.details));
 }

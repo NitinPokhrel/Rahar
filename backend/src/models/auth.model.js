@@ -6,10 +6,10 @@ const Auth = (sequelize) => {
   class Auth extends Model {
     static associate(models) {
       // One-to-one relationship with User model
-      Auth.hasOne(models.User, { 
-        foreignKey: "authId", 
+      Auth.hasOne(models.User, {
+        foreignKey: "authId",
         as: "profile",
-        onDelete: "CASCADE"
+        onDelete: "CASCADE",
       });
     }
 
@@ -28,7 +28,9 @@ const Auth = (sequelize) => {
 
     generateVerificationToken() {
       this.emailVerificationToken = crypto.randomBytes(32).toString("hex");
-      this.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      this.emailVerificationExpires = new Date(
+        Date.now() + 24 * 60 * 60 * 1000
+      ); // 24 hours
     }
 
     generatePasswordResetToken() {
@@ -48,11 +50,16 @@ const Auth = (sequelize) => {
     }
 
     isEmailVerificationTokenValid() {
-      return this.emailVerificationExpires && new Date() < this.emailVerificationExpires;
+      return (
+        this.emailVerificationExpires &&
+        new Date() < this.emailVerificationExpires
+      );
     }
 
     isPasswordResetTokenValid() {
-      return this.passwordResetExpires && new Date() < this.passwordResetExpires;
+      return (
+        this.passwordResetExpires && new Date() < this.passwordResetExpires
+      );
     }
 
     markEmailAsVerified() {
@@ -190,9 +197,13 @@ const Auth = (sequelize) => {
       hooks: {
         beforeSave: async (auth) => {
           await auth.hashPassword();
-          
+
           // Auto-verify email for Google OAuth users
-          if (auth.googleId && auth.provider === "google" && !auth.emailVerified) {
+          if (
+            auth.googleId &&
+            auth.provider === "google" &&
+            !auth.emailVerified
+          ) {
             auth.markEmailAsVerified();
           }
         },
