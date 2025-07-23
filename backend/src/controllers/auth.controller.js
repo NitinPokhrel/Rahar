@@ -115,8 +115,9 @@ export const registerWithEmail = async (req, res) => {
 
     res.status(201).json({
       success: true,
+      status: "Registration successful",
       message:
-        "Registration successful. Please check your email to verify your account.",
+        "Please check your email to verify your account.",
       data: {
         auth: {
           id: auth.id,
@@ -138,12 +139,14 @@ export const registerWithEmail = async (req, res) => {
     if (error.name === "SequelizeUniqueConstraintError") {
       return res.status(400).json({
         success: false,
+        status:"Registration failed",
         message: "Email already exists",
       });
     }
 
     res.status(400).json({
       success: false,
+      status:"Registration failed",
       message: error.message,
     });
   }
@@ -162,6 +165,7 @@ export const loginWithEmail = async (req, res) => {
     if (!auth) {
       return res.status(401).json({
         success: false,
+        status: "Login failed",
         message: "Invalid email or password",
       });
     }
@@ -169,6 +173,7 @@ export const loginWithEmail = async (req, res) => {
     if (auth.isSuspended) {
       return res.status(403).json({
         success: false,
+        status: "Login failed",
         message: "Account is suspended",
       });
     }
@@ -180,6 +185,7 @@ export const loginWithEmail = async (req, res) => {
       );
       return res.status(423).json({
         success: false,
+        status: "Login failed",
         message: `Account is locked. Try again in ${lockTimeLeft} minutes.`,
       });
     }
@@ -198,6 +204,7 @@ export const loginWithEmail = async (req, res) => {
       await auth.save();
       return res.status(401).json({
         success: false,
+        status: "Login failed",
         message: "Invalid email or password",
       });
     }
@@ -216,6 +223,7 @@ export const loginWithEmail = async (req, res) => {
 
     res.status(200).json({
       success: true,
+      status: "Login successful",
       message: "Login successful",
       data: {
         auth: {
@@ -234,6 +242,7 @@ export const loginWithEmail = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
+      status: "Login failed",
       message: error.message,
     });
   }
@@ -263,6 +272,7 @@ export const authenticateWithGoogle = async (req, res) => {
 
       return res.status(200).json({
         success: true,
+        status: "Login successful",
         message: "Login successful",
         data: {
           auth: {
@@ -290,6 +300,7 @@ export const authenticateWithGoogle = async (req, res) => {
     if (auth && auth.provider === "email") {
       return res.status(400).json({
         success: false,
+        status: "Registration failed",
         message:
           "An account with this email already exists. Please sign in with email and password.",
       });
@@ -335,6 +346,7 @@ export const authenticateWithGoogle = async (req, res) => {
 
       res.status(201).json({
         success: true,
+        status: "Registration and login successful",
         message: "Registration and login successful",
         data: {
           auth: {
@@ -358,6 +370,7 @@ export const authenticateWithGoogle = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
+      status: "Registration failed",
       message: error.message,
     });
   }
@@ -371,6 +384,7 @@ export const refreshToken = async (req, res) => {
     if (!refreshToken) {
       return res.status(401).json({
         success: false,
+        status: "Token refresh failed",
         message: "Refresh token is required",
       });
     }
@@ -383,6 +397,7 @@ export const refreshToken = async (req, res) => {
 
     res.status(200).json({
       success: true,
+      status: "Token refreshed successfully",
       message: "Token refreshed successfully",
       data: {
         tokens: {
@@ -394,6 +409,7 @@ export const refreshToken = async (req, res) => {
   } catch (error) {
     res.status(401).json({
       success: false,
+      status: "Token refresh failed",
       message: "Invalid or expired refresh token",
     });
   }
@@ -411,6 +427,7 @@ export const sendEmailVerification = async (req, res) => {
     if (!auth) {
       return res.status(404).json({
         success: false,
+        status: "Verification failed",
         message: "User not found",
       });
     }
@@ -418,6 +435,7 @@ export const sendEmailVerification = async (req, res) => {
     if (auth.emailVerified) {
       return res.status(400).json({
         success: false,
+        status: "Verification failed",
         message: "Email is already verified",
       });
     }
@@ -497,6 +515,7 @@ export const sendEmailVerification = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
+      status: "Verification failed",
       message: error.message,
     });
   }
@@ -514,6 +533,7 @@ export const verifyEmail = async (req, res) => {
     if (!auth) {
       return res.status(400).json({
         success: false,
+        status: "Verification failed",
         message: "Invalid verification token",
       });
     }
@@ -521,6 +541,7 @@ export const verifyEmail = async (req, res) => {
     if (!auth.isEmailVerificationTokenValid()) {
       return res.status(400).json({
         success: false,
+        status: "Verification failed",
         message: "Verification token has expired",
       });
     }
@@ -530,11 +551,13 @@ export const verifyEmail = async (req, res) => {
 
     res.status(200).json({
       success: true,
+      status: "Email verified successfully",
       message: "Email verified successfully",
     });
   } catch (error) {
     res.status(500).json({
       success: false,
+      status: "Verification failed",
       message: error.message,
     });
   }
@@ -553,6 +576,7 @@ export const requestPasswordReset = async (req, res) => {
       // Don't reveal if email exists for security
       return res.status(200).json({
         success: true,
+        status: "Password reset requested",
         message: "If the email exists, a reset link has been sent",
       });
     }
@@ -625,11 +649,13 @@ export const requestPasswordReset = async (req, res) => {
 
     res.status(200).json({
       success: true,
+      status: "Password reset requested",
       message: "If the email exists, a reset link has been sent",
     });
   } catch (error) {
     res.status(500).json({
       success: false,
+      status: "Password reset failed",
       message: error.message,
     });
   }
@@ -647,6 +673,7 @@ export const resetPassword = async (req, res) => {
     if (!auth) {
       return res.status(400).json({
         success: false,
+        status: "Password reset failed",
         message: "Invalid reset token",
       });
     }
@@ -654,6 +681,7 @@ export const resetPassword = async (req, res) => {
     if (!auth.isPasswordResetTokenValid()) {
       return res.status(400).json({
         success: false,
+        status: "Password reset failed",
         message: "Reset token has expired",
       });
     }
@@ -664,11 +692,13 @@ export const resetPassword = async (req, res) => {
 
     res.status(200).json({
       success: true,
+      status: "Password reset successful",
       message: "Password reset successfully",
     });
   } catch (error) {
     res.status(500).json({
       success: false,
+      status: "Password reset failed",
       message: error.message,
     });
   }
@@ -687,6 +717,7 @@ export const changePassword = async (req, res) => {
     if (!auth || auth.provider !== "email") {
       return res.status(400).json({
         success: false,
+        status: "Change password failed",
         message: "Invalid operation",
       });
     }
@@ -695,6 +726,7 @@ export const changePassword = async (req, res) => {
     if (!isValidPassword) {
       return res.status(400).json({
         success: false,
+        status: "Change password failed",
         message: "Current password is incorrect",
       });
     }
@@ -704,11 +736,13 @@ export const changePassword = async (req, res) => {
 
     res.status(200).json({
       success: true,
+      status: "Password changed successfully",
       message: "Password changed successfully",
     });
   } catch (error) {
     res.status(500).json({
       success: false,
+      status: "Change password failed",
       message: error.message,
     });
   }
@@ -735,12 +769,14 @@ export const getCurrentUser = async (req, res) => {
     if (!auth) {
       return res.status(404).json({
         success: false,
+        status: "User not found",
         message: "User not found",
       });
     }
 
     res.status(200).json({
       success: true,
+      status: "User retrieved successfully",
       data: {
         auth: {
           id: auth.id,
@@ -757,6 +793,7 @@ export const getCurrentUser = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
+      status: "User retrieval failed",
       message: error.message,
     });
   }
@@ -766,6 +803,7 @@ export const getCurrentUser = async (req, res) => {
 export const logout = async (req, res) => {
   res.status(200).json({
     success: true,
+    status: "Logout successful",
     message: "Logged out successfully",
   });
 };
@@ -783,6 +821,7 @@ export const suspendAccount = async (req, res) => {
     if (!auth) {
       return res.status(404).json({
         success: false,
+        status: "User not found",
         message: "User not found",
       });
     }
@@ -794,11 +833,13 @@ export const suspendAccount = async (req, res) => {
 
     res.status(200).json({
       success: true,
+      status: "Account suspended successfully",
       message: "Account suspended successfully",
     });
   } catch (error) {
     res.status(500).json({
       success: false,
+      status: "Account suspension failed",
       message: error.message,
     });
   }
@@ -816,6 +857,7 @@ export const reactivateAccount = async (req, res) => {
     if (!auth) {
       return res.status(404).json({
         success: false,
+        status: "User not found",
         message: "User not found",
       });
     }
@@ -827,11 +869,13 @@ export const reactivateAccount = async (req, res) => {
 
     res.status(200).json({
       success: true,
+      status: "Account reactivated successfully",
       message: "Account reactivated successfully",
     });
   } catch (error) {
     res.status(500).json({
       success: false,
+      status: "Account reactivation failed",
       message: error.message,
     });
   }

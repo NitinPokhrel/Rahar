@@ -83,7 +83,7 @@ app.use("/api/v1/wishlists", wishlistRouter);
 
 // Database connection and server startup
 sequelize
-  .sync({ force: true })
+  .sync({ force: false })
   .then(() => {
     console.log("✅ Database tables synced successfully.");
     return sequelize.authenticate();
