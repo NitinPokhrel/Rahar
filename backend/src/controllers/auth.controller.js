@@ -116,8 +116,7 @@ export const registerWithEmail = async (req, res) => {
     res.status(201).json({
       success: true,
       status: "Registration successful",
-      message:
-        "Please check your email to verify your account.",
+      message: "Please check your email to verify your account.",
       data: {
         auth: {
           id: auth.id,
@@ -139,14 +138,14 @@ export const registerWithEmail = async (req, res) => {
     if (error.name === "SequelizeUniqueConstraintError") {
       return res.status(400).json({
         success: false,
-        status:"Registration failed",
+        status: "Registration failed",
         message: "Email already exists",
       });
     }
 
     res.status(400).json({
       success: false,
-      status:"Registration failed",
+      status: "Registration failed",
       message: error.message,
     });
   }
