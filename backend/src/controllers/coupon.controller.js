@@ -490,7 +490,7 @@ export async function applyCouponToOrder(
   couponCodes,
   userId,
   orderProducts,
-  transaction
+  transaction = null
 ) {
   let totalDiscountAmount = 0;
   let updatedProducts = [...orderProducts];
@@ -848,3 +848,5 @@ export async function applyCouponToOrder(
     failedCoupons: failedCoupons,
   };
 }
+
+
