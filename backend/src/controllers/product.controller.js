@@ -91,7 +91,6 @@ export const getAllProducts = async (req, res) => {
     const {
       page = 1,
       limit = 20,
-      search,
       category,
       minPrice,
       maxPrice,
@@ -105,18 +104,7 @@ export const getAllProducts = async (req, res) => {
 
     const whereConditions = { isActive: true };
 
-    if (search) {
-      whereConditions[Op.or] = [
-        { name: { [Op.iLike]: `%${search}%` } },
-        { description: { [Op.iLike]: `%${search}%` } },
-        { shortDescription: { [Op.iLike]: `%${search}%` } },
-        { tags: { [Op.contains]: [search] } },
-        {price: { [Op.gte]: parseFloat(search) } },
-        
-        
 
-      ];
-    }
 
     if (category) whereConditions.categoryId = category;
     if (minPrice || maxPrice) {
