@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { Auth, User, AuthToken } from "../models/index.model.js"; // Adjust import path as needed
+import { Auth, User, AuthToken } from "../models/index.model.js";
 import crypto from "crypto";
 
 export const authMiddleware = async (req, res, next) => {
@@ -91,67 +91,6 @@ export const authMiddleware = async (req, res, next) => {
     });
   }
 };
-
-// export const authMiddleware = async (req, res, next) => {
-//   try {
-//     const token = req.header("Authorization")?.replace("Bearer ", "");
-
-//     if (!token) {
-//       return res.status(401).json({
-//         success: false,
-//         message: "Access token required",
-//       });
-//     }
-
-//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-//     // Verify user still exists and is active
-//     const auth = await Auth.findOne({
-//       where: { id: decoded.authId },
-//       include: [{ model: User, as: "profile" }],
-//     });
-
-//     if (!auth || !auth.isActive || auth.isSuspended) {
-//       return res.status(401).json({
-//         success: false,
-//         message: "Invalid token or account suspended",
-//       });
-//     }
-
-//     req.user = {
-//       authId: auth.id,
-//       userId: auth.profile.id,
-
-//       // UserId and id are the same but in some apis we have used req.id too so we kept it
-
-//       id: auth.profile.id,
-//       email: auth.email,
-//       role: auth.profile.role,
-//       permissions: auth.profile.permissions,
-//     };
-
-//     next();
-//   } catch (error) {
-//     if (error.name === "JsonWebTokenError") {
-//       return res.status(401).json({
-//         success: false,
-//         message: "Invalid token",
-//       });
-//     }
-
-//     if (error.name === "TokenExpiredError") {
-//       return res.status(401).json({
-//         success: false,
-//         message: "Token expired",
-//       });
-//     }
-
-//     res.status(500).json({
-//       success: false,
-//       message: "Authentication error",
-//     });
-//   }
-// };
 
 export const adminMiddleware = (req, res, next) => {
   if (req.user.role !== "admin") {

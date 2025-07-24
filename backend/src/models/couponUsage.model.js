@@ -1,6 +1,7 @@
 // Coupon Usage Model
 import { DataTypes, Model } from "sequelize";
 const CouponUsage = (sequelize) => {
+  
   class CouponUsage extends Model {
     static associate(models) {
       CouponUsage.belongsTo(models.User, { foreignKey: "userId", as: "user" });
