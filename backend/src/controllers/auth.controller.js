@@ -92,10 +92,20 @@ const setCookies = (res, tokens) => {
     httpOnly: true,
     secure: isProduction,
     sameSite: isProduction ? "strict" : "lax",
+    path: "/api/v1/auth/refresh-token",
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   };
 
+  const cookieOptions2 = {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "strict" : "lax",
+    path: "/",
+    maxAge: 1 * 60 * 60 * 1000, // 1 hour
+  };
+
   res.cookie("refreshToken", tokens.refreshToken, cookieOptions);
+  res.cookie("accessToken", tokens.accessToken, cookieOptions2);
 };
 
 // Login with email and password

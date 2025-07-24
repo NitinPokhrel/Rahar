@@ -2,13 +2,9 @@ import jwt from "jsonwebtoken";
 import { Auth, User, AuthToken } from "../models/index.model.js"; // Adjust import path as needed
 import crypto from "crypto";
 
-
-
-
-
 export const authMiddleware = async (req, res, next) => {
   try {
-    const token = req.header("Authorization")?.replace("Bearer ", "");
+    const token = req.cookies.accessToken;
 
     if (!token) {
       return res.status(401).json({
@@ -96,10 +92,6 @@ export const authMiddleware = async (req, res, next) => {
   }
 };
 
-
-
-
-
 // export const authMiddleware = async (req, res, next) => {
 //   try {
 //     const token = req.header("Authorization")?.replace("Bearer ", "");
@@ -160,10 +152,6 @@ export const authMiddleware = async (req, res, next) => {
 //     });
 //   }
 // };
-
-
-
-
 
 export const adminMiddleware = (req, res, next) => {
   if (req.user.role !== "admin") {
