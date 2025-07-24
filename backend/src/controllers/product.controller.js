@@ -110,6 +110,11 @@ export const getAllProducts = async (req, res) => {
         { name: { [Op.iLike]: `%${search}%` } },
         { description: { [Op.iLike]: `%${search}%` } },
         { shortDescription: { [Op.iLike]: `%${search}%` } },
+        { tags: { [Op.contains]: [search] } },
+        {price: { [Op.gte]: parseFloat(search) } },
+        
+        
+
       ];
     }
 

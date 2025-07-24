@@ -1,13 +1,13 @@
 // routes/search.routes.js
-import { Router } from "express";
-import {
-  searchProducts,
-  getSearchSuggestions,
-} from "../controllers/search.controller.js";
+import express from "express";
+import { searchProducts, getProductSearchSuggestions, searchUsers } from "../controllers/search.controller.js";
 
-const router = Router();
+const router = express.Router();
 
-router.route("/").get(searchProducts);
-router.route("/suggestions").get(getSearchSuggestions);
+
+router.get("/products", searchProducts);
+router.get("/products/suggestions", getProductSearchSuggestions);
+
+router.get("/users", searchUsers);
 
 export default router;
