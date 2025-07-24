@@ -1,4 +1,3 @@
-// controllers/order.controller.js
 import { Op } from "sequelize";
 import {
   Order,
@@ -6,263 +5,11 @@ import {
   Product,
   ProductVariant,
   Coupon,
-  CouponUsage,
+  OrderCoupon,
 } from "../models/index.model.js";
 import { sequelize } from "../models/index.model.js";
 import { Cart } from "../models/index.model.js";
-
-async function getDiscountAmount(couponCodes, userId, products, transaction) {
-  try {
-    // Validate input
-    if (!Array.isArray(couponCodes) || couponCodes.length === 0) {
-      throw new Error("At least one coupon code is required");
-    }
-
-    // Remove duplicates and convert to uppercase
-    const uniqueCouponCodes = [
-      ...new Set(couponCodes.map((code) => code.toUpperCase())),
-    ];
-
-    // Fetch all coupons
-    const coupons = await Coupon.findAll({
-      where: {
-        code: uniqueCouponCodes,
-        isActive: true,
-      },
-      transaction,
-    });
-
-    if (coupons.length === 0) {
-      throw new Error("No valid coupons found");
-    }
-
-    // Check for any missing coupons
-    const foundCouponCodes = coupons.map((c) => c.code);
-    const missingCoupons = uniqueCouponCodes.filter(
-      (code) => !foundCouponCodes.includes(code)
-    );
-    if (missingCoupons.length > 0) {
-      throw new Error(
-        `Coupons not found or inactive: ${missingCoupons.join(", ")}`
-      );
-    }
-
-    const now = new Date();
-    let totalDiscountAmount = 0;
-    let appliedCoupons = [];
-    let remainingProducts = [...products];
-
-    // Calculate subtotal
-    let subtotal = 0;
-    for (const item of products) {
-      const price = parseFloat(item.price);
-      const stock = parseInt(item.stock);
-      subtotal += price * stock;
-    }
-
-    // Process each coupon
-    for (const coupon of coupons) {
-      try {
-        // Date validation
-        if (coupon.startDate && now < new Date(coupon.startDate)) {
-          throw new Error(`Coupon ${coupon.code} is not yet active`);
-        }
-        if (coupon.endDate && now > new Date(coupon.endDate)) {
-          throw new Error(`Coupon ${coupon.code} has expired`);
-        }
-
-        // Usage limit validation
-        if (coupon.usedCount >= coupon.usageLimit) {
-          throw new Error(`Coupon ${coupon.code} usage limit exceeded`);
-        }
-
-        // User usage validation
-        const userUsageCount = await CouponUsage.count({
-          where: {
-            userId,
-            couponId: coupon.id,
-          },
-          transaction,
-        });
-
-        if (userUsageCount >= coupon.usageLimitPerUser) {
-          throw new Error(
-            `User coupon usage limit exceeded for ${coupon.code}`
-          );
-        }
-
-        // Minimum amount validation (check against total subtotal)
-        if (subtotal < coupon.minimumAmount) {
-          throw new Error(
-            `Minimum order amount of ${coupon.minimumAmount} not met for coupon ${coupon.code}`
-          );
-        }
-
-        // Find applicable products from remaining products
-        let allApplicableProducts = [];
-
-        for (const item of remainingProducts) {
-          const price = parseFloat(item.price);
-          const stock = parseInt(item.stock);
-          const itemTotal = price * stock;
-
-          if (
-            coupon.isGlobal ||
-            coupon.applicableProducts.includes(item.product)
-          ) {
-            allApplicableProducts.push({
-              ...item,
-              price,
-              stock,
-              itemTotal,
-            });
-          }
-        }
-
-        if (allApplicableProducts.length === 0) {
-          throw new Error(
-            `Coupon ${coupon.code} is not applicable to any remaining products in cart`
-          );
-        }
-
-        // Check product-specific usage limits
-        let availableProducts = [];
-
-        for (const item of allApplicableProducts) {
-          const productUsageCount = await CouponUsage.count({
-            where: {
-              userId,
-              couponId: coupon.id,
-              productId: item.product,
-            },
-            transaction,
-          });
-
-          if (productUsageCount < coupon.usageLimitPerUser) {
-            availableProducts.push(item);
-          }
-        }
-
-        if (availableProducts.length === 0) {
-          throw new Error(
-            `Coupon ${coupon.code} usage limit exceeded for all applicable products`
-          );
-        }
-
-        // Calculate how many products this coupon can be applied to
-        const remainingUserUsage = coupon.usageLimitPerUser - userUsageCount;
-        const maxProductsToApply = Math.min(
-          remainingUserUsage,
-          availableProducts.length
-        );
-
-        // Sort by highest value first to maximize discount
-        availableProducts.sort((a, b) => b.itemTotal - a.itemTotal);
-        const productsToApply = availableProducts.slice(0, maxProductsToApply);
-
-        // Calculate discount for this coupon
-        let couponDiscountAmount = 0;
-        let appliedProducts = [];
-
-        for (const item of productsToApply) {
-          let itemDiscount = 0;
-
-          if (coupon.type === "percentage") {
-            itemDiscount = (item.itemTotal * coupon.value) / 100;
-          } else if (coupon.type === "fixed") {
-            itemDiscount = Math.min(coupon.value, item.itemTotal);
-          }
-
-          itemDiscount = Math.min(itemDiscount, coupon.maxDiscountAmount);
-          couponDiscountAmount += itemDiscount;
-
-          appliedProducts.push({
-            productId: item.product,
-            itemTotal: item.itemTotal,
-            discount: itemDiscount,
-          });
-        }
-
-        // Ensure discount doesn't exceed applicable subtotal
-        const applicableSubtotal = productsToApply.reduce(
-          (sum, item) => sum + item.itemTotal,
-          0
-        );
-        couponDiscountAmount = Math.min(
-          couponDiscountAmount,
-          applicableSubtotal
-        );
-        couponDiscountAmount = Math.round(couponDiscountAmount * 100) / 100;
-
-        // Record coupon usage
-        const couponUsagePromises = productsToApply.map((item) =>
-          CouponUsage.create(
-            {
-              userId,
-              couponId: coupon.id,
-              productId: item.product,
-              usedAt: new Date(),
-            },
-            { transaction }
-          )
-        );
-
-        await Promise.all(couponUsagePromises);
-
-        // Update coupon used count
-        await coupon.increment("usedCount", {
-          by: productsToApply.length,
-          transaction,
-        });
-
-        // Add to results
-        totalDiscountAmount += couponDiscountAmount;
-        appliedCoupons.push({
-          id: coupon.id,
-          code: coupon.code,
-          name: coupon.name,
-          type: coupon.type,
-          value: coupon.value,
-          discountAmount: couponDiscountAmount,
-          appliedToProducts: appliedProducts,
-        });
-
-        // Remove applied products from remaining products for next coupon
-        const appliedProductIds = productsToApply.map((p) => p.product);
-        remainingProducts = remainingProducts.filter(
-          (item) => !appliedProductIds.includes(item.product)
-        );
-      } catch (couponError) {
-        console.warn(`Skipping coupon ${coupon.code}:`, couponError.message);
-        // Continue with next coupon instead of failing entirely
-        continue;
-      }
-    }
-
-    // Check if any coupons were successfully applied
-    if (appliedCoupons.length === 0) {
-      throw new Error("No coupons could be applied");
-    }
-
-    totalDiscountAmount = Math.round(totalDiscountAmount * 100) / 100;
-
-    return {
-      totalAmount: totalDiscountAmount,
-      appliedCoupons: appliedCoupons,
-      summary: {
-        totalCouponsApplied: appliedCoupons.length,
-        totalCouponsProvided: uniqueCouponCodes.length,
-        totalDiscount: totalDiscountAmount,
-      },
-    };
-  } catch (error) {
-    console.error(
-      "Multiple coupons discount calculation error:",
-      error.message
-    );
-    throw error;
-  }
-}
+import { applyCouponToOrder } from "./coupon.controller.js";
 
 export const createOrder = async (req, res) => {
   const transaction = await sequelize.transaction();
@@ -280,7 +27,9 @@ export const createOrder = async (req, res) => {
     }
 
     let products = [];
+    let productsForDiscount = [];
     let subtotal = 0;
+    let shippingAmount = process.env.SHIPPING_AMOUNT || 180;
 
     for (const item of items) {
       const cartItem = await Cart.findOne({
@@ -298,7 +47,7 @@ export const createOrder = async (req, res) => {
         ],
       });
 
-      if (!cartItem.id || !cartItem.product) {
+      if (!cartItem || !cartItem.id || !cartItem.product) {
         throw new Error("Cart item is invalid !!");
       }
 
@@ -311,6 +60,13 @@ export const createOrder = async (req, res) => {
           : cartItem.product.price,
       });
 
+      productsForDiscount.push({
+        productId: cartItem.product.id,
+        product: cartItem.product,
+        variant: cartItem.variant,
+        quantity: cartItem.quantity,
+      });
+
       subtotal +=
         parseFloat(
           cartItem.variant ? cartItem.variant.price : cartItem.product.price
@@ -320,10 +76,10 @@ export const createOrder = async (req, res) => {
     let coupenResult;
 
     if (couponCodes && couponCodes.length > 0) {
-      coupenResult = await getDiscountAmount(
+      coupenResult = await applyCouponToOrder(
         couponCodes,
         userId,
-        products,
+        productsForDiscount,
         transaction
       );
     }
@@ -332,16 +88,30 @@ export const createOrder = async (req, res) => {
       {
         userId,
         subtotal,
-        discountAmount: coupenResult?.amount,
+        discountAmount: coupenResult?.totalDiscountAmount,
         address,
         paymentMethod,
-        couponId: coupenResult?.id,
         phone,
+        shippingAmount,
         notes,
         status: paymentMethod === "cashOnDelivery" ? "confirmed" : "pending",
         paymentStatus: paymentMethod === "cashOnDelivery" ? "pending" : "paid",
       },
       { transaction }
+    );
+
+    // console.log(coupenResult)
+
+    await Promise.all(
+      coupenResult.appliedCoupons.map((item) =>
+        OrderCoupon.create(
+          {
+            orderId: order.id,
+            couponId: item.couponId,
+          },
+          { transaction }
+        )
+      )
     );
 
     await Promise.all(
@@ -535,7 +305,7 @@ export const getUserOrders = async (req, res) => {
             },
             {
               model: ProductVariant,
-              as: "productVarient", // Fixed: matches the alias in OrderItem model
+              as: "productVarient",
               attributes: ["id", "name", "attributes"],
             },
           ],
