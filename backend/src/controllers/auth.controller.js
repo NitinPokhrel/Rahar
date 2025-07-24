@@ -1,12 +1,54 @@
-// controllers/auth.controller.js
 import jwt from "jsonwebtoken";
-import { Auth, User } from "../models/index.model.js";
 import { sendMail } from "../config/sendEmail.js";
+import { Auth, User, AuthToken } from "../models/index.model.js";
+import crypto from "crypto";
 
-// Helper function to generate JWT tokens
-const generateTokens = (authId, userId) => {
+// Helper function to get device info from request
+const getDeviceInfo = (req) => {
+  const userAgent = req.headers["user-agent"] || "";
+  const ip =
+    req.ip ||
+    req.connection.remoteAddress ||
+    req.socket.remoteAddress ||
+    (req.connection.socket ? req.connection.socket.remoteAddress : null);
+
+  // Parse user agent for basic device info
+  const deviceInfo = {
+    browser: "Unknown",
+    os: "Unknown",
+    device: "Unknown",
+  };
+
+  // Basic user agent parsing (you might want to use a library like 'ua-parser-js' for better parsing)
+  if (userAgent.includes("Chrome")) deviceInfo.browser = "Chrome";
+  else if (userAgent.includes("Firefox")) deviceInfo.browser = "Firefox";
+  else if (userAgent.includes("Safari")) deviceInfo.browser = "Safari";
+  else if (userAgent.includes("Edge")) deviceInfo.browser = "Edge";
+
+  if (userAgent.includes("Windows")) deviceInfo.os = "Windows";
+  else if (userAgent.includes("Mac")) deviceInfo.os = "macOS";
+  else if (userAgent.includes("Linux")) deviceInfo.os = "Linux";
+  else if (userAgent.includes("Android")) deviceInfo.os = "Android";
+  else if (userAgent.includes("iOS")) deviceInfo.os = "iOS";
+
+  if (userAgent.includes("Mobile")) deviceInfo.device = "Mobile";
+  else if (userAgent.includes("Tablet")) deviceInfo.device = "Tablet";
+  else deviceInfo.device = "Desktop";
+
+  return {
+    deviceInfo,
+    ipAddress: ip,
+    userAgent,
+  };
+};
+
+// Helper function to generate and store tokens
+const generateAndStoreTokens = async (authId, userId, req) => {
+  const deviceData = getDeviceInfo(req);
+
+  // Generate JWT tokens
   const accessToken = jwt.sign({ authId, userId }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || "15m",
+    expiresIn: process.env.JWT_EXPIRES_IN || "5m",
   });
 
   const refreshToken = jwt.sign(
@@ -15,8 +57,875 @@ const generateTokens = (authId, userId) => {
     { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d" }
   );
 
-  return { accessToken, refreshToken };
+  // Calculate expiration dates
+  const accessTokenExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+  const refreshTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+  // Store tokens in database
+  const authToken = await AuthToken.create({
+    authId,
+    accessToken: crypto.createHash("sha256").update(accessToken).digest("hex"),
+    refreshToken: crypto
+      .createHash("sha256")
+      .update(refreshToken)
+      .digest("hex"),
+    expiresAt: accessTokenExpiry,
+    refreshExpiresAt: refreshTokenExpiry,
+    ...deviceData,
+    loginAt: new Date(),
+    lastUsedAt: new Date(),
+  });
+
+  return {
+    accessToken,
+    refreshToken,
+    tokenId: authToken.id,
+    deviceInfo: deviceData.deviceInfo,
+  };
 };
+
+// Helper function to set cookies based on environment
+const setCookies = (res, tokens) => {
+  const isProduction = process.env.NODE_ENV === "production";
+
+  const cookieOptions = {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "strict" : "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  };
+
+  res.cookie("refreshToken", tokens.refreshToken, cookieOptions);
+};
+
+// Login with email and password
+export const loginWithEmail = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const auth = await Auth.scope("active").findOne({
+      where: { email, provider: "email" },
+      include: [{ model: User, as: "profile" }],
+    });
+
+    if (!auth) {
+      return res.status(401).json({
+        success: false,
+        status: "Login failed",
+        message: "Invalid email or password",
+      });
+    }
+
+    if (auth.isSuspended) {
+      return res.status(403).json({
+        success: false,
+        status: "Login failed",
+        message: "Account is suspended",
+      });
+    }
+
+    // Check if account is locked
+    if (auth.lockedUntil && new Date() < auth.lockedUntil) {
+      const lockTimeLeft = Math.ceil(
+        (auth.lockedUntil - new Date()) / 1000 / 60
+      );
+      return res.status(423).json({
+        success: false,
+        status: "Login failed",
+        message: `Account is locked. Try again in ${lockTimeLeft} minutes.`,
+      });
+    }
+
+    const isValidPassword = await auth.checkPassword(password);
+
+    if (!isValidPassword) {
+      // Increment failed attempts
+      auth.loginAttempts += 1;
+
+      // Lock account after 5 failed attempts
+      if (auth.loginAttempts >= 5) {
+        auth.lockedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+      }
+
+      await auth.save();
+      return res.status(401).json({
+        success: false,
+        status: "Login failed",
+        message: "Invalid email or password",
+      });
+    }
+
+    // Reset failed attempts on successful login
+    auth.loginAttempts = 0;
+    auth.lockedUntil = null;
+    auth.updateLastLogin();
+    await auth.save();
+
+    // Generate and store tokens
+    const tokens = await generateAndStoreTokens(auth.id, auth.profile.id, req);
+
+    // Set refresh token as httpOnly cookie
+    setCookies(res, tokens);
+
+    res.status(200).json({
+      success: true,
+      status: "Login successful",
+      message: "Login successful",
+      data: {
+        auth: {
+          id: auth.id,
+          email: auth.email,
+          emailVerified: auth.emailVerified,
+          provider: auth.provider,
+        },
+        user: auth.profile,
+        tokens: {
+          accessToken: tokens.accessToken,
+        },
+        device: {
+          tokenId: tokens.tokenId,
+          deviceInfo: tokens.deviceInfo,
+        },
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      status: "Login failed",
+      message: error.message,
+    });
+  }
+};
+
+// Google OAuth callback
+export const authenticateWithGoogle = async (req, res) => {
+  try {
+    const { googleProfile } = req.body;
+    const { id: googleId, emails, name, photos } = googleProfile;
+    const email = emails[0].value;
+
+    let auth = await Auth.findOne({
+      where: { googleId },
+      include: [{ model: User, as: "profile" }],
+    });
+
+    if (auth) {
+      // Existing Google user - update last login
+      auth.updateLastLogin();
+      await auth.save();
+
+      const tokens = await generateAndStoreTokens(
+        auth.id,
+        auth.profile.id,
+        req
+      );
+      setCookies(res, tokens);
+
+      return res.status(200).json({
+        success: true,
+        status: "Login successful",
+        message: "Login successful",
+        data: {
+          auth: {
+            id: auth.id,
+            email: auth.email,
+            emailVerified: auth.emailVerified,
+            provider: auth.provider,
+          },
+          user: auth.profile,
+          tokens: {
+            accessToken: tokens.accessToken,
+          },
+          device: {
+            tokenId: tokens.tokenId,
+            deviceInfo: tokens.deviceInfo,
+          },
+          isNewUser: false,
+        },
+      });
+    }
+
+    // Check if email exists with different provider
+    auth = await Auth.findOne({
+      where: { email },
+      include: [{ model: User, as: "profile" }],
+    });
+
+    if (auth && auth.provider === "email") {
+      return res.status(400).json({
+        success: false,
+        status: "Registration failed",
+        message:
+          "An account with this email already exists. Please sign in with email and password.",
+      });
+    }
+
+    // Create new Google user
+    const transaction = await Auth.sequelize.transaction();
+
+    try {
+      auth = await Auth.create(
+        {
+          email,
+          googleId,
+          provider: "google",
+          emailVerified: true,
+          emailVerifiedAt: new Date(),
+          lastLoginAt: new Date(),
+        },
+        { transaction }
+      );
+
+      const user = await User.create(
+        {
+          authId: auth.id,
+          firstName: name.givenName || "User",
+          lastName: name.familyName || "",
+          avatar:
+            photos && photos[0]
+              ? {
+                  url: photos[0].value,
+                  height: 200,
+                  width: 200,
+                  blurhash: "default",
+                }
+              : null,
+        },
+        { transaction }
+      );
+
+      await transaction.commit();
+
+      const tokens = await generateAndStoreTokens(auth.id, user.id, req);
+      setCookies(res, tokens);
+
+      res.status(201).json({
+        success: true,
+        status: "Registration and login successful",
+        message: "Registration and login successful",
+        data: {
+          auth: {
+            id: auth.id,
+            email: auth.email,
+            emailVerified: auth.emailVerified,
+            provider: auth.provider,
+          },
+          user,
+          tokens: {
+            accessToken: tokens.accessToken,
+          },
+          device: {
+            tokenId: tokens.tokenId,
+            deviceInfo: tokens.deviceInfo,
+          },
+          isNewUser: true,
+        },
+      });
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      status: "Registration failed",
+      message: error.message,
+    });
+  }
+};
+
+// Refresh access token
+export const refreshToken = async (req, res) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+
+    if (!refreshToken) {
+      return res.status(401).json({
+        success: false,
+        status: "Token refresh failed",
+        message: "Refresh token is required",
+      });
+    }
+
+    // Hash the refresh token to compare with database
+    const hashedRefreshToken = crypto
+      .createHash("sha256")
+      .update(refreshToken)
+      .digest("hex");
+
+    // Find the token in database
+    const authToken = await AuthToken.findOne({
+      where: {
+        refreshToken: hashedRefreshToken,
+        isActive: true,
+      },
+      include: [
+        {
+          model: Auth,
+          as: "auth",
+          include: [{ model: User, as: "profile" }],
+        },
+      ],
+    });
+
+    if (!authToken || authToken.isRefreshExpired()) {
+      return res.status(401).json({
+        success: false,
+        status: "Token refresh failed",
+        message: "Invalid or expired refresh token",
+      });
+    }
+
+    // Check if auth account is still active
+    if (!authToken.auth.isActive || authToken.auth.isSuspended) {
+      return res.status(401).json({
+        success: false,
+        status: "Token refresh failed",
+        message: "Account is suspended or inactive",
+      });
+    }
+
+    // Generate new tokens
+    const newTokens = await generateAndStoreTokens(
+      authToken.auth.id,
+      authToken.auth.profile.id,
+      req
+    );
+
+    // Deactivate old token
+    authToken.isActive = false;
+    await authToken.save();
+
+    // Set new refresh token cookie
+    setCookies(res, newTokens);
+
+    res.status(200).json({
+      success: true,
+      status: "Token refreshed successfully",
+      message: "Token refreshed successfully",
+      data: {
+        tokens: {
+          accessToken: newTokens.accessToken,
+        },
+        device: {
+          tokenId: newTokens.tokenId,
+          deviceInfo: newTokens.deviceInfo,
+        },
+      },
+    });
+  } catch (error) {
+    res.status(401).json({
+      success: false,
+      status: "Token refresh failed",
+      message: "Invalid or expired refresh token",
+    });
+  }
+};
+
+// Change password
+export const changePassword = async (req, res) => {
+  try {
+    const { authId } = req.user; // From auth middleware
+    const { currentPassword, newPassword } = req.body;
+
+    const auth = await Auth.findOne({
+      where: { id: authId },
+    });
+
+    if (!auth || auth.provider !== "email") {
+      return res.status(400).json({
+        success: false,
+        status: "Change password failed",
+        message: "Invalid operation",
+      });
+    }
+
+    const isValidPassword = await auth.checkPassword(currentPassword);
+    if (!isValidPassword) {
+      return res.status(400).json({
+        success: false,
+        status: "Change password failed",
+        message: "Current password is incorrect",
+      });
+    }
+
+    // Update password (this will trigger the hook to clear all tokens)
+    auth.password = newPassword;
+    await auth.save();
+
+    // Clear refresh token cookie
+    res.clearCookie("refreshToken");
+
+    res.status(200).json({
+      success: true,
+      status: "Password changed successfully",
+      message:
+        "Password changed successfully. Please login again on all devices.",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      status: "Change password failed",
+      message: error.message,
+    });
+  }
+};
+
+// Logout from current device
+export const logout = async (req, res) => {
+  try {
+    const { tokenId } = req.user; // From auth middleware
+
+    if (tokenId) {
+      await AuthToken.update({ isActive: false }, { where: { id: tokenId } });
+    }
+
+    // Clear refresh token cookie
+    res.clearCookie("refreshToken");
+
+    res.status(200).json({
+      success: true,
+      status: "Logout successful",
+      message: "Logged out successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      status: "Logout failed",
+      message: error.message,
+    });
+  }
+};
+
+// Logout from specific device (requires password)
+export const logoutDevice = async (req, res) => {
+  try {
+    const { authId } = req.user;
+    const { tokenId, password } = req.body;
+
+    // Verify password
+    const auth = await Auth.findOne({ where: { id: authId } });
+
+    if (auth.provider === "email") {
+      const isValidPassword = await auth.checkPassword(password);
+      if (!isValidPassword) {
+        return res.status(400).json({
+          success: false,
+          status: "Logout failed",
+          message: "Invalid password",
+        });
+      }
+    }
+
+    // Deactivate specific token
+    const result = await AuthToken.update(
+      { isActive: false },
+      {
+        where: {
+          id: tokenId,
+          authId: authId,
+        },
+      }
+    );
+
+    if (result[0] === 0) {
+      return res.status(404).json({
+        success: false,
+        status: "Logout failed",
+        message: "Device session not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      status: "Device logout successful",
+      message: "Device logged out successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      status: "Logout failed",
+      message: error.message,
+    });
+  }
+};
+
+// Get active sessions/devices
+export const getActiveSessions = async (req, res) => {
+  try {
+    const { authId } = req.user;
+
+    const sessions = await AuthToken.findAll({
+      where: {
+        authId: authId,
+        isActive: true,
+      },
+      attributes: [
+        "id",
+        "deviceInfo",
+        "ipAddress",
+        "loginAt",
+        "lastUsedAt",
+        "location",
+      ],
+      order: [["lastUsedAt", "DESC"]],
+    });
+
+    res.status(200).json({
+      success: true,
+      status: "Sessions retrieved successfully",
+      message: "Active sessions retrieved successfully",
+      data: {
+        sessions: sessions.map((session) => ({
+          tokenId: session.id,
+          deviceInfo: session.deviceInfo,
+          ipAddress: session.ipAddress,
+          loginAt: session.loginAt,
+          lastUsedAt: session.lastUsedAt,
+          location: session.location,
+          isCurrent: session.id === req.user.tokenId,
+        })),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      status: "Failed to retrieve sessions",
+      message: error.message,
+    });
+  }
+};
+
+// // Helper function to generate JWT tokens
+// const generateTokens = (authId, userId) => {
+//   const accessToken = jwt.sign({ authId, userId }, process.env.JWT_SECRET, {
+//     expiresIn: process.env.JWT_EXPIRES_IN || "5m",
+//   });
+
+//   const refreshToken = jwt.sign(
+//     { authId, userId },
+//     process.env.JWT_REFRESH_SECRET,
+//     { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d" }
+//   );
+
+//   return { accessToken, refreshToken };
+// };
+
+// // Login with email and password
+// export const loginWithEmail = async (req, res) => {
+//   try {
+//     const { email, password } = req.body;
+
+//     const auth = await Auth.scope("active").findOne({
+//       where: { email, provider: "email" },
+//       include: [{ model: User, as: "profile" }],
+//     });
+
+//     if (!auth) {
+//       return res.status(401).json({
+//         success: false,
+//         status: "Login failed",
+//         message: "Invalid email or password",
+//       });
+//     }
+
+//     if (auth.isSuspended) {
+//       return res.status(403).json({
+//         success: false,
+//         status: "Login failed",
+//         message: "Account is suspended",
+//       });
+//     }
+
+//     // Check if account is locked
+//     if (auth.lockedUntil && new Date() < auth.lockedUntil) {
+//       const lockTimeLeft = Math.ceil(
+//         (auth.lockedUntil - new Date()) / 1000 / 60
+//       );
+//       return res.status(423).json({
+//         success: false,
+//         status: "Login failed",
+//         message: `Account is locked. Try again in ${lockTimeLeft} minutes.`,
+//       });
+//     }
+
+//     const isValidPassword = await auth.checkPassword(password);
+
+//     if (!isValidPassword) {
+//       // Increment failed attempts
+//       auth.loginAttempts += 1;
+
+//       // Lock account after 5 failed attempts
+//       if (auth.loginAttempts >= 5) {
+//         auth.lockedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+//       }
+
+//       await auth.save();
+//       return res.status(401).json({
+//         success: false,
+//         status: "Login failed",
+//         message: "Invalid email or password",
+//       });
+//     }
+
+//     // Reset failed attempts on successful login
+//     auth.loginAttempts = 0;
+//     auth.lockedUntil = null;
+//     auth.updateLastLogin();
+//     await auth.save();
+
+//     // Generate tokens
+//     const { accessToken, refreshToken } = generateTokens(
+//       auth.id,
+//       auth.profile.id
+//     );
+
+//     res.status(200).json({
+//       success: true,
+//       status: "Login successful",
+//       message: "Login successful",
+//       data: {
+//         auth: {
+//           id: auth.id,
+//           email: auth.email,
+//           emailVerified: auth.emailVerified,
+//           provider: auth.provider,
+//         },
+//         user: auth.profile,
+//         tokens: {
+//           accessToken,
+//           refreshToken,
+//         },
+//       },
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       status: "Login failed",
+//       message: error.message,
+//     });
+//   }
+// };
+
+// // Google OAuth callback
+// export const authenticateWithGoogle = async (req, res) => {
+//   try {
+//     const { googleProfile } = req.body;
+//     const { id: googleId, emails, name, photos } = googleProfile;
+//     const email = emails[0].value;
+
+//     let auth = await Auth.findOne({
+//       where: { googleId },
+//       include: [{ model: User, as: "profile" }],
+//     });
+
+//     if (auth) {
+//       // Existing Google user - update last login
+//       auth.updateLastLogin();
+//       await auth.save();
+
+//       const { accessToken, refreshToken } = generateTokens(
+//         auth.id,
+//         auth.profile.id
+//       );
+
+//       return res.status(200).json({
+//         success: true,
+//         status: "Login successful",
+//         message: "Login successful",
+//         data: {
+//           auth: {
+//             id: auth.id,
+//             email: auth.email,
+//             emailVerified: auth.emailVerified,
+//             provider: auth.provider,
+//           },
+//           user: auth.profile,
+//           tokens: {
+//             accessToken,
+//             refreshToken,
+//           },
+//           isNewUser: false,
+//         },
+//       });
+//     }
+
+//     // Check if email exists with different provider
+//     auth = await Auth.findOne({
+//       where: { email },
+//       include: [{ model: User, as: "profile" }],
+//     });
+
+//     if (auth && auth.provider === "email") {
+//       return res.status(400).json({
+//         success: false,
+//         status: "Registration failed",
+//         message:
+//           "An account with this email already exists. Please sign in with email and password.",
+//       });
+//     }
+
+//     // Create new Google user
+//     const transaction = await Auth.sequelize.transaction();
+
+//     try {
+//       auth = await Auth.create(
+//         {
+//           email,
+//           googleId,
+//           provider: "google",
+//           emailVerified: true,
+//           emailVerifiedAt: new Date(),
+//           lastLoginAt: new Date(),
+//         },
+//         { transaction }
+//       );
+
+//       const user = await User.create(
+//         {
+//           authId: auth.id,
+//           firstName: name.givenName || "User",
+//           lastName: name.familyName || "",
+//           avatar:
+//             photos && photos[0]
+//               ? {
+//                   url: photos[0].value,
+//                   height: 200,
+//                   width: 200,
+//                   blurhash: "default",
+//                 }
+//               : null,
+//         },
+//         { transaction }
+//       );
+
+//       await transaction.commit();
+
+//       const { accessToken, refreshToken } = generateTokens(auth.id, user.id);
+
+//       res.status(201).json({
+//         success: true,
+//         status: "Registration and login successful",
+//         message: "Registration and login successful",
+//         data: {
+//           auth: {
+//             id: auth.id,
+//             email: auth.email,
+//             emailVerified: auth.emailVerified,
+//             provider: auth.provider,
+//           },
+//           user,
+//           tokens: {
+//             accessToken,
+//             refreshToken,
+//           },
+//           isNewUser: true,
+//         },
+//       });
+//     } catch (error) {
+//       await transaction.rollback();
+//       throw error;
+//     }
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       status: "Registration failed",
+//       message: error.message,
+//     });
+//   }
+// };
+
+// // Refresh access token
+// export const refreshToken = async (req, res) => {
+//   try {
+//     const { refreshToken } = req.body;
+
+//     if (!refreshToken) {
+//       return res.status(401).json({
+//         success: false,
+//         status: "Token refresh failed",
+//         message: "Refresh token is required",
+//       });
+//     }
+
+//     const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+//     const { accessToken, refreshToken: newRefreshToken } = generateTokens(
+//       decoded.authId,
+//       decoded.userId
+//     );
+
+//     res.status(200).json({
+//       success: true,
+//       status: "Token refreshed successfully",
+//       message: "Token refreshed successfully",
+//       data: {
+//         tokens: {
+//           accessToken,
+//           refreshToken: newRefreshToken,
+//         },
+//       },
+//     });
+//   } catch (error) {
+//     res.status(401).json({
+//       success: false,
+//       status: "Token refresh failed",
+//       message: "Invalid or expired refresh token",
+//     });
+//   }
+// };
+
+// // Change password
+// export const changePassword = async (req, res) => {
+//   try {
+//     const { authId } = req.user; // From auth middleware
+//     const { currentPassword, newPassword } = req.body;
+
+//     const auth = await Auth.findOne({
+//       where: { id: authId },
+//     });
+
+//     if (!auth || auth.provider !== "email") {
+//       return res.status(400).json({
+//         success: false,
+//         status: "Change password failed",
+//         message: "Invalid operation",
+//       });
+//     }
+
+//     const isValidPassword = await auth.checkPassword(currentPassword);
+//     if (!isValidPassword) {
+//       return res.status(400).json({
+//         success: false,
+//         status: "Change password failed",
+//         message: "Current password is incorrect",
+//       });
+//     }
+
+//     auth.password = newPassword;
+//     await auth.save();
+
+//     res.status(200).json({
+//       success: true,
+//       status: "Password changed successfully",
+//       message: "Password changed successfully",
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       status: "Change password failed",
+//       message: error.message,
+//     });
+//   }
+// };
+
+// // Logout (client-side token invalidation)
+// export const logout = async (req, res) => {
+//   res.status(200).json({
+//     success: true,
+//     status: "Logout successful",
+//     message: "Logged out successfully",
+//   });
+// };
 
 // Register with email and password
 export const registerWithEmail = async (req, res) => {
@@ -147,269 +1056,6 @@ export const registerWithEmail = async (req, res) => {
       success: false,
       status: "Registration failed",
       message: error.message,
-    });
-  }
-};
-
-// Login with email and password
-export const loginWithEmail = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    const auth = await Auth.scope("active").findOne({
-      where: { email, provider: "email" },
-      include: [{ model: User, as: "profile" }],
-    });
-
-    if (!auth) {
-      return res.status(401).json({
-        success: false,
-        status: "Login failed",
-        message: "Invalid email or password",
-      });
-    }
-
-    if (auth.isSuspended) {
-      return res.status(403).json({
-        success: false,
-        status: "Login failed",
-        message: "Account is suspended",
-      });
-    }
-
-    // Check if account is locked
-    if (auth.lockedUntil && new Date() < auth.lockedUntil) {
-      const lockTimeLeft = Math.ceil(
-        (auth.lockedUntil - new Date()) / 1000 / 60
-      );
-      return res.status(423).json({
-        success: false,
-        status: "Login failed",
-        message: `Account is locked. Try again in ${lockTimeLeft} minutes.`,
-      });
-    }
-
-    const isValidPassword = await auth.checkPassword(password);
-
-    if (!isValidPassword) {
-      // Increment failed attempts
-      auth.loginAttempts += 1;
-
-      // Lock account after 5 failed attempts
-      if (auth.loginAttempts >= 5) {
-        auth.lockedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-      }
-
-      await auth.save();
-      return res.status(401).json({
-        success: false,
-        status: "Login failed",
-        message: "Invalid email or password",
-      });
-    }
-
-    // Reset failed attempts on successful login
-    auth.loginAttempts = 0;
-    auth.lockedUntil = null;
-    auth.updateLastLogin();
-    await auth.save();
-
-    // Generate tokens
-    const { accessToken, refreshToken } = generateTokens(
-      auth.id,
-      auth.profile.id
-    );
-
-    res.status(200).json({
-      success: true,
-      status: "Login successful",
-      message: "Login successful",
-      data: {
-        auth: {
-          id: auth.id,
-          email: auth.email,
-          emailVerified: auth.emailVerified,
-          provider: auth.provider,
-        },
-        user: auth.profile,
-        tokens: {
-          accessToken,
-          refreshToken,
-        },
-      },
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      status: "Login failed",
-      message: error.message,
-    });
-  }
-};
-
-// Google OAuth callback
-export const authenticateWithGoogle = async (req, res) => {
-  try {
-    const { googleProfile } = req.body;
-    const { id: googleId, emails, name, photos } = googleProfile;
-    const email = emails[0].value;
-
-    let auth = await Auth.findOne({
-      where: { googleId },
-      include: [{ model: User, as: "profile" }],
-    });
-
-    if (auth) {
-      // Existing Google user - update last login
-      auth.updateLastLogin();
-      await auth.save();
-
-      const { accessToken, refreshToken } = generateTokens(
-        auth.id,
-        auth.profile.id
-      );
-
-      return res.status(200).json({
-        success: true,
-        status: "Login successful",
-        message: "Login successful",
-        data: {
-          auth: {
-            id: auth.id,
-            email: auth.email,
-            emailVerified: auth.emailVerified,
-            provider: auth.provider,
-          },
-          user: auth.profile,
-          tokens: {
-            accessToken,
-            refreshToken,
-          },
-          isNewUser: false,
-        },
-      });
-    }
-
-    // Check if email exists with different provider
-    auth = await Auth.findOne({
-      where: { email },
-      include: [{ model: User, as: "profile" }],
-    });
-
-    if (auth && auth.provider === "email") {
-      return res.status(400).json({
-        success: false,
-        status: "Registration failed",
-        message:
-          "An account with this email already exists. Please sign in with email and password.",
-      });
-    }
-
-    // Create new Google user
-    const transaction = await Auth.sequelize.transaction();
-
-    try {
-      auth = await Auth.create(
-        {
-          email,
-          googleId,
-          provider: "google",
-          emailVerified: true,
-          emailVerifiedAt: new Date(),
-          lastLoginAt: new Date(),
-        },
-        { transaction }
-      );
-
-      const user = await User.create(
-        {
-          authId: auth.id,
-          firstName: name.givenName || "User",
-          lastName: name.familyName || "",
-          avatar:
-            photos && photos[0]
-              ? {
-                  url: photos[0].value,
-                  height: 200,
-                  width: 200,
-                  blurhash: "default",
-                }
-              : null,
-        },
-        { transaction }
-      );
-
-      await transaction.commit();
-
-      const { accessToken, refreshToken } = generateTokens(auth.id, user.id);
-
-      res.status(201).json({
-        success: true,
-        status: "Registration and login successful",
-        message: "Registration and login successful",
-        data: {
-          auth: {
-            id: auth.id,
-            email: auth.email,
-            emailVerified: auth.emailVerified,
-            provider: auth.provider,
-          },
-          user,
-          tokens: {
-            accessToken,
-            refreshToken,
-          },
-          isNewUser: true,
-        },
-      });
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      status: "Registration failed",
-      message: error.message,
-    });
-  }
-};
-
-// Refresh access token
-export const refreshToken = async (req, res) => {
-  try {
-    const { refreshToken } = req.body;
-
-    if (!refreshToken) {
-      return res.status(401).json({
-        success: false,
-        status: "Token refresh failed",
-        message: "Refresh token is required",
-      });
-    }
-
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-    const { accessToken, refreshToken: newRefreshToken } = generateTokens(
-      decoded.authId,
-      decoded.userId
-    );
-
-    res.status(200).json({
-      success: true,
-      status: "Token refreshed successfully",
-      message: "Token refreshed successfully",
-      data: {
-        tokens: {
-          accessToken,
-          refreshToken: newRefreshToken,
-        },
-      },
-    });
-  } catch (error) {
-    res.status(401).json({
-      success: false,
-      status: "Token refresh failed",
-      message: "Invalid or expired refresh token",
     });
   }
 };
@@ -703,50 +1349,6 @@ export const resetPassword = async (req, res) => {
   }
 };
 
-// Change password
-export const changePassword = async (req, res) => {
-  try {
-    const { authId } = req.user; // From auth middleware
-    const { currentPassword, newPassword } = req.body;
-
-    const auth = await Auth.findOne({
-      where: { id: authId },
-    });
-
-    if (!auth || auth.provider !== "email") {
-      return res.status(400).json({
-        success: false,
-        status: "Change password failed",
-        message: "Invalid operation",
-      });
-    }
-
-    const isValidPassword = await auth.checkPassword(currentPassword);
-    if (!isValidPassword) {
-      return res.status(400).json({
-        success: false,
-        status: "Change password failed",
-        message: "Current password is incorrect",
-      });
-    }
-
-    auth.password = newPassword;
-    await auth.save();
-
-    res.status(200).json({
-      success: true,
-      status: "Password changed successfully",
-      message: "Password changed successfully",
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      status: "Change password failed",
-      message: error.message,
-    });
-  }
-};
-
 // Get current user
 export const getCurrentUser = async (req, res) => {
   try {
@@ -796,15 +1398,6 @@ export const getCurrentUser = async (req, res) => {
       message: error.message,
     });
   }
-};
-
-// Logout (client-side token invalidation)
-export const logout = async (req, res) => {
-  res.status(200).json({
-    success: true,
-    status: "Logout successful",
-    message: "Logged out successfully",
-  });
 };
 
 // Suspend user account (Admin only)

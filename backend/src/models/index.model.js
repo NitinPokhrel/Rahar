@@ -12,6 +12,7 @@ import ProductVariantDef from "./productVariant.model.js";
 import ReviewDef from "./review.model.js";
 import OrderCouponDef from "./orderCoupon.model.js";
 import AuthDef from "./auth.model.js";
+import AuthTokenDef from "./authToken.model.js";
 
 import WishlistDef from "./wishlist.model.js";
 
@@ -25,6 +26,7 @@ const models = {
   CouponUsage: CouponUsageDef(sequelize),
   OrderCoupon: OrderCouponDef(sequelize),
   Auth: AuthDef(sequelize),
+  AuthToken: AuthTokenDef(sequelize),
 
   Order: OrderDef(sequelize),
   OrderItem: OrderItemDef(sequelize),
@@ -46,6 +48,7 @@ Object.values(models).forEach((model) => {
 const {
   User,
   Auth,
+  AuthToken,
   Cart,
   Category,
   Coupon,
@@ -68,6 +71,7 @@ export {
   models,
   User,
   Auth,
+  AuthToken,
   Cart,
   Category,
   Coupon,

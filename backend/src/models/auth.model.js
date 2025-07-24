@@ -11,6 +11,13 @@ const Auth = (sequelize) => {
         as: "profile",
         onDelete: "CASCADE",
       });
+
+      // One-to-many relationship with AuthTokens
+      Auth.hasMany(models.AuthToken, {
+        foreignKey: "authId",
+        as: "tokens",
+        onDelete: "CASCADE",
+      });
     }
 
     async checkPassword(password) {
@@ -70,6 +77,25 @@ const Auth = (sequelize) => {
 
     updateLastLogin() {
       this.lastLoginAt = new Date();
+    }
+
+    // Clear all auth tokens (for password change, account suspension, etc.)
+    async clearAllTokens() {
+      const { AuthToken } = sequelize.models;
+      await AuthToken.destroy({
+        where: { authId: this.id }
+      });
+    }
+
+    // Clear specific token (for logout)
+    async clearToken(tokenId) {
+      const { AuthToken } = sequelize.models;
+      await AuthToken.destroy({
+        where: { 
+          id: tokenId,
+          authId: this.id 
+        }
+      });
     }
   }
 
@@ -205,6 +231,11 @@ const Auth = (sequelize) => {
             !auth.emailVerified
           ) {
             auth.markEmailAsVerified();
+          }
+
+          // Clear all tokens if password is changed
+          if (auth.changed('password') && !auth.isNewRecord) {
+            await auth.clearAllTokens();
           }
         },
         beforeCreate: (auth) => {
