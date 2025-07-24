@@ -31,6 +31,11 @@ export const authMiddleware = async (req, res, next) => {
     req.user = {
       authId: auth.id,
       userId: auth.profile.id,
+
+      // UserId and id are the same but in some apis we have used req.id too so we kept it
+
+      
+      id: auth.profile.id,
       email: auth.email,
       role: auth.profile.role,
       permissions: auth.profile.permissions,

@@ -305,7 +305,7 @@ export const getUserOrders = async (req, res) => {
             },
             {
               model: ProductVariant,
-              as: "productVarient", // Fixed: matches the alias in OrderItem model
+              as: "productVarient",
               attributes: ["id", "name", "attributes"],
             },
           ],
