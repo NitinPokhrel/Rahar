@@ -214,7 +214,7 @@ export const getReviewById = async (req, res) => {
   }
 };
 
-// Update review (only by owner)
+// Update review (only by the user who purchased the product)
 export const updateReview = async (req, res) => {
   try {
     const { id } = req.params;
@@ -269,7 +269,7 @@ export const updateReview = async (req, res) => {
   }
 };
 
-// Delete review (only by owner)
+// Delete review (only by user who purchased the product)
 export const deleteReview = async (req, res) => {
   try {
     const { id } = req.params;

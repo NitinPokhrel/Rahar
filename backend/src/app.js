@@ -15,6 +15,7 @@ import reviewRouter from "./routes/review.route.js";
 import searchRouter from "./routes/search.route.js";
 import wishlistRouter from "./routes/wishlist.route.js";
 import authRouter from "./routes/auth.route.js";
+import { authMiddleware } from "./middleware/auth.middleware.js";
 
 const PORT = process.env.PORT || 8000;
 
@@ -39,45 +40,21 @@ app.get("/test", (req, res) => {
   });
 });
 
-// this will be removed later while authentication operation are carried out
-const createUserExample = {
-  id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  firstName: "Photo",
-  lastName: "Test",
-  email: "john121.doe@example.com",
-  password: "securePassword123",
-  phone: "+1234567890",
-  dateOfBirth: "1990-05-15",
-  gender: "male",
-  role: "admin",
-  permissions: ["manageUsers", "manageProducts", "manageOrders"],
-  address: {
-    province: "California",
-    city: "Los Angeles",
-    fullAddress: "123 Main Street, Apt 4B, Los Angeles, CA 90210",
-  },
-};
-
-async function authenticateUser(req, res, next) {
-  req.user = createUserExample;
-  next();
-}
-
-app.use(authenticateUser);
-
 // API routes
 
-app.use("/api/v1/carts", cartRouter);
-app.use("/api/v1/categories", categoryRouter);
-app.use("/api/v1/coupons", couponRouter);
-
-app.use("/api/v1/orders", orderRouter);
-app.use("/api/v1/products", productRouter);
-app.use("/api/v1/reviews", reviewRouter);
-app.use("/api/v1/search", searchRouter);
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/auth", authRouter);
-app.use("/api/v1/wishlists", wishlistRouter);
+app.use("/api/v1/products", productRouter);
+app.use("/api/v1/categories", categoryRouter);
+
+app.use("/api/v1/coupons", authMiddleware, couponRouter);
+app.use("/api/v1/carts", authMiddleware, cartRouter);
+
+app.use("/api/v1/orders", authMiddleware, orderRouter);
+app.use("/api/v1/reviews", authMiddleware, reviewRouter);
+
+app.use("/api/v1/search", authMiddleware, searchRouter);
+app.use("/api/v1/wishlists", authMiddleware, wishlistRouter);
 
 // Database connection and server startup
 sequelize

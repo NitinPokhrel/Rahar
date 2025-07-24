@@ -160,16 +160,6 @@ export const updateUserAvatar = async (req, res) => {
 
 export const createUser = async (req, res) => {
   try {
-    if (
-      req.user.role !== "admin" &&
-      !req.user.permissions.includes("manageUsers")
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: "You are not authorized to create this user",
-      });
-    }
-
     const {
       clerkUserId,
       firstName,
@@ -244,16 +234,6 @@ export const blockUser = async (req, res) => {
   try {
     const userId = req.params.userId;
 
-    if (
-      req.user.role !== "admin" &&
-      !req.user.permissions.includes("manageUsers")
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: "You are not authorized to block this user",
-      });
-    }
-
     const [rowsUpdated, [updatedUser]] = await User.update(
       { isActive: false },
       {
@@ -287,17 +267,6 @@ export const unblockUser = async (req, res) => {
   try {
     const userId = req.params.userId;
 
-    if (
-      req.user.role !== "admin" &&
-      !req.user.permissions.includes("manageUsers")
-    ) {
-      return res.status(403).json({
-        success: false,
-        status: "Unblock Failed",
-        message: "You are not authorized to unblock this user",
-      });
-    }
-
     const [rowsUpdated, [updatedUser]] = await User.update(
       { isActive: true },
       {
@@ -330,16 +299,6 @@ export const unblockUser = async (req, res) => {
 export const updateUserPermissions = async (req, res) => {
   try {
     const { userId } = req.params;
-
-    if (
-      req.user.role !== "admin" &&
-      !req.user.permissions.includes("manageUsers")
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: "You are not authorized to update this user",
-      });
-    }
 
     const { permissions } = req.body;
 

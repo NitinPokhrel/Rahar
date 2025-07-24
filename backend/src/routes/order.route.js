@@ -12,7 +12,7 @@ const router = Router();
 
 router.route("/").post(createOrder).get(getUserOrders);
 router.route("/:orderId").get(getSingleOrder);
-router.route("/:orderId/status").patch(changeOrderStatus);
+router.route("/:orderId/status").patch(permissionMiddleware('manageOrders'), changeOrderStatus);
 router.route("/:orderId/cancel").patch(cancelOrder);
 
 export default router;

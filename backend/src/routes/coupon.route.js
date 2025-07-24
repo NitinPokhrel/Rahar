@@ -13,10 +13,10 @@ router.get('/',getAllCoupons)
 
 
 // Admin routes
-router.delete('/:id',  removeCoupon);
-router.patch('/:id/restore',restoreCoupon);
-router.post('/create', createCoupon);
-router.put('/:id/update', updateCoupon);
-router.get('/:couponId/usage', getCouponUsage); 
+router.delete('/:id', permissionMiddleware('manageCoupons'),  removeCoupon);
+router.patch('/:id/restore', permissionMiddleware('manageCoupons'), restoreCoupon);
+router.post('/create', permissionMiddleware('manageCoupons'), createCoupon);
+router.put('/:id/update', permissionMiddleware('manageCoupons'), updateCoupon);
+router.get('/:couponId/usage', permissionMiddleware('manageCoupons'), getCouponUsage);
 
 export default router;

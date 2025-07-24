@@ -20,15 +20,18 @@ router.get("/:slug", getCategoryBySlug);
 router.post(
   "/",
   upload.fields([{ name: "image", maxCount: 1 }]),
+  permissionMiddleware("manageCategories"),
   createCategory
 );
 
 router.put(
   "/:id",
   upload.fields([{ name: "image", maxCount: 1 }]),
+  permissionMiddleware("manageCategories"),
   updateCategory
 );
-router.delete("/:id", deleteCategory);
-router.patch("/:id/restore", restoreCategory);
+
+router.delete("/:id", permissionMiddleware("manageCategories"), deleteCategory);
+router.patch("/:id/restore", permissionMiddleware("manageCategories"), restoreCategory);
 
 export default router;

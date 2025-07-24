@@ -21,9 +21,9 @@ router.delete("/:id", deleteReview);
 router.get("/:id", getReviewById);
 router.get("/user/:userId", getUserReviews);
 
-// admin
+// admin routes
 
 router.get("/", getReviews);
-router.delete("/:id/admin", deleteReviewByAdmin);
+router.delete("/:id/admin", permissionMiddleware("manageReviews"), deleteReviewByAdmin);
 
 export default router;
