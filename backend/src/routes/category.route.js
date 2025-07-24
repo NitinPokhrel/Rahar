@@ -7,31 +7,22 @@ import {
   getCategoryBySlug,
   restoreCategory,
 } from "../controllers/category.controller.js";
+import { permissionMiddleware } from "../middleware/auth.middleware.js";
 import upload from "../config/multer.js";
 
 const router = Router();
 
+// Public routes
 router.get("/", getCategories);
 router.get("/:slug", getCategoryBySlug);
 
-// **********************************   ------------   *******************************************
+// Apply admin middleware to all routes below
+router.use(permissionMiddleware("manageCategories"));
 
 // Admin-only routes
-router.post(
-  "/",
-  upload.fields([{ name: "image", maxCount: 1 }]),
-  permissionMiddleware("manageCategories"),
-  createCategory
-);
-
-router.put(
-  "/:id",
-  upload.fields([{ name: "image", maxCount: 1 }]),
-  permissionMiddleware("manageCategories"),
-  updateCategory
-);
-
-router.delete("/:id", permissionMiddleware("manageCategories"), deleteCategory);
-router.patch("/:id/restore", permissionMiddleware("manageCategories"), restoreCategory);
+router.post("/", upload.fields([{ name: "image", maxCount: 1 }]), createCategory);
+router.put("/:id", upload.fields([{ name: "image", maxCount: 1 }]), updateCategory);
+router.delete("/:id", deleteCategory);
+router.patch("/:id/restore", restoreCategory);
 
 export default router;

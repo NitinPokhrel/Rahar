@@ -10,10 +10,11 @@ import {
   getUserReviews,
   updateReview,
 } from "../controllers/review.controller.js";
+import { permissionMiddleware } from "../middleware/auth.middleware.js";
 
 const router = Router();
 
-// public routes
+// Public routes
 router.post("/", createReview);
 router.get("/product/:productId/stats", getProductStats);
 router.put("/:id", updateReview);
@@ -21,9 +22,11 @@ router.delete("/:id", deleteReview);
 router.get("/:id", getReviewById);
 router.get("/user/:userId", getUserReviews);
 
-// admin routes
+// Apply admin middleware to all routes below
+router.use(permissionMiddleware("manageReviews"));
 
+// Admin routes
 router.get("/", getReviews);
-router.delete("/:id/admin", permissionMiddleware("manageReviews"), deleteReviewByAdmin);
+router.delete("/:id/admin", deleteReviewByAdmin);
 
 export default router;

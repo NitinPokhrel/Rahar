@@ -9,40 +9,36 @@ import {
   updateUserPermissions,
   updateUserProfile,
 } from "../controllers/user.controller.js";
+import { permissionMiddleware } from "../middleware/auth.middleware.js";
 import upload from "../config/multer.js";
 
 const router = Router();
 
-router.route("/").get(getUserProfile).patch(updateUserProfile);
+// Public routes (no auth required)
+router.get("/", getUserProfile);
+router.patch("/", updateUserProfile);
 
-router
-  .route("/create")
-  .post(
-    upload.fields([{ name: "avatar", maxCount: 1 }]),
-    permissionMiddleware("manageUsers"),
-    createUser
-  );
+// Auth required routes
+router.patch("/:userId/updateAvatar", 
+  upload.fields([{ name: "avatar", maxCount: 1 }]), 
+  updateUserAvatar
+);
 
-router.use(authMiddleware);
+// Apply permission middleware to all routes below
+router.use(permissionMiddleware("manageUsers"));
 
-router
-  .route("/:userId")
-  .get(getUserProfile)
-  .patch(
-    upload.fields([{ name: "avatar", maxCount: 1 }]),
-    permissionMiddleware("manageUsers"),
-    updateUserProfile
-  )
-  .delete(blockUser);
-
-router
-  .route("/:userId/updatePermissions")
-  .patch(permissionMiddleware("manageUsers"), updateUserPermissions);
-router
-  .route("/:userId/unblock")
-  .get(permissionMiddleware("manageUsers"), unblockUser);
-router
-  .route("/:userId/updateAvatar")
-  .patch(upload.fields([{ name: "avatar", maxCount: 1 }]), updateUserAvatar);
+// Admin routes
+router.post("/create", 
+  upload.fields([{ name: "avatar", maxCount: 1 }]), 
+  createUser
+);
+router.get("/:userId", getUserProfile);
+router.patch("/:userId", 
+  upload.fields([{ name: "avatar", maxCount: 1 }]), 
+  updateUserProfile
+);
+router.delete("/:userId", blockUser);
+router.patch("/:userId/updatePermissions", updateUserPermissions);
+router.get("/:userId/unblock", unblockUser);
 
 export default router;

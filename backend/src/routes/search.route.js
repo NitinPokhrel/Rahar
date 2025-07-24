@@ -12,12 +12,17 @@ import { adminMiddleware } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
+// Public routes
 router.get("/products", searchProducts);
 router.get("/products/suggestions", getProductSearchSuggestions);
 
-router.get("/users", adminMiddleware, searchUsers);
-router.get("/orders", adminMiddleware, searchOrders);
-router.get("/coupons", adminMiddleware, searchCoupons);
-router.get("/reviews", adminMiddleware, searchReviews);
+// Apply admin middleware to all routes below
+router.use(adminMiddleware);
+
+// Admin routes
+router.get("/users", searchUsers);
+router.get("/orders", searchOrders);
+router.get("/coupons", searchCoupons);
+router.get("/reviews", searchReviews);
 
 export default router;
