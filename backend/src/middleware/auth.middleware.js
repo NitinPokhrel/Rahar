@@ -13,8 +13,17 @@ export const authMiddleware = async (req, res, next) => {
       });
     }
 
-    // Verify JWT token
+    // After jwt.verify
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Later, you could add additional validation
+    if (decoded.authId !== authToken.auth.id) {
+      return res.status(401).json({
+        success: false,
+        status: "Not authorized",
+        message: "Token mismatch",
+      });
+    }
 
     // Hash the token to compare with database
     const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
@@ -23,6 +32,7 @@ export const authMiddleware = async (req, res, next) => {
     const authToken = await AuthToken.findOne({
       where: {
         accessToken: hashedToken,
+        authId: decoded.authId,
         isActive: true,
       },
       include: [
@@ -96,6 +106,7 @@ export const adminMiddleware = (req, res, next) => {
   if (req.user.role !== "admin") {
     return res.status(403).json({
       success: false,
+      status: "Not authorized",
       message: "Admin access required",
     });
   }
@@ -114,7 +125,8 @@ export const permissionMiddleware = (requiredPermission) => {
 
     return res.status(403).json({
       success: false,
-      message: `${requiredPermission} permission required`,
+      status: "Not authorized",
+      message: `${requiredPermission} permission required to perform this action`,
     });
   };
 };

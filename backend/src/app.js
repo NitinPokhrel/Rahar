@@ -4,7 +4,6 @@ import cookieParser from "cookie-parser";
 import sequelize from "./db/db.js";
 
 // import router
-import adminRouter from "./routes/admin.route.js";
 import userRouter from "./routes/user.route.js";
 import cartRouter from "./routes/cart.route.js";
 import categoryRouter from "./routes/category.route.js";
@@ -67,7 +66,7 @@ async function authenticateUser(req, res, next) {
 app.use(authenticateUser);
 
 // API routes
-app.use("/api/v1/admins", adminRouter);
+
 app.use("/api/v1/carts", cartRouter);
 app.use("/api/v1/categories", categoryRouter);
 app.use("/api/v1/coupons", couponRouter);

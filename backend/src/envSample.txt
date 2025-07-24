@@ -1,0 +1,21 @@
+Hello to whoever is managing this project i am pretty sure you don't have env files so here is the sample required fields so you don't have to pull your hair to figure out all variables okay dude this is great......................
+
+
+PORT=your_value
+COMPANY_NAME=your_value
+STATUS=development || production
+DB_NAME=your_value
+DB_USER=your_value
+DB_PASSWORD=your_value
+CLOUDINARY_CLOUD_NAME=your_value
+CLOUDINARY_API_KEY=your_value
+CLOUDINARY_API_SECRET=your_value
+CORS=your_value
+SHIPPING_AMOUNT=150
+ZEPTOMAIL_API_KEY=your_value
+EMAIL_FROM=your_value
+JWT_SECRET=your_value
+JWT_REFRESH_SECRET=your_value
+JWT_EXPIRES_IN=5m // my suggested value
+JWT_REFRESH_EXPIRES_IN=7d // you can do anything
+FRONTEND_URL=shop.com // your store address
