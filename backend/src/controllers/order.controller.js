@@ -83,8 +83,7 @@ export const createOrder = async (req, res) => {
         transaction
       );
     }
-    console.log(coupenResult)
-    return res.json(coupenResult);
+  
 
     const order = await Order.create(
       {
@@ -102,7 +101,6 @@ export const createOrder = async (req, res) => {
       { transaction }
     );
 
-    console.log(coupenResult)
 
     await Promise.all(
       coupenResult.appliedCoupons.map((item) =>

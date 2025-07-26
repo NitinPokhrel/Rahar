@@ -573,7 +573,7 @@ export const searchUsers = async (req, res) => {
         [Op.or]: [
           { firstName: { [Op.iLike]: `%${searchTerm}%` } },
           { lastName: { [Op.iLike]: `%${searchTerm}%` } },
-          { email: { [Op.iLike]: `%${searchTerm}%` } },
+          // { email: { [Op.iLike]: `%${searchTerm}%` } },
           { phone: { [Op.iLike]: `%${searchTerm}%` } },
           // Cast ENUM fields to text for ILIKE search
           Sequelize.literal(`"role"::text ILIKE '%${searchTerm.replace(/'/g, "''")}%'`),
@@ -645,7 +645,7 @@ export const searchOrders = async (req, res) => {
       includeArray.push({
         model: User,
         as: "user",
-        attributes: ["id", "firstName", "lastName", "email", "phone"],
+        attributes: ["id", "firstName", "lastName",  "phone"],
         required: false,
       });
     }
@@ -780,7 +780,7 @@ export const searchReviews = async (req, res) => {
       {
         model: User,
         as: "user",
-        attributes: ["id", "firstName", "lastName", "email", "phone"],
+        attributes: ["id", "firstName", "lastName",  "phone"],
         required: false
       },
       {
@@ -808,7 +808,7 @@ export const searchReviews = async (req, res) => {
       // Search in user details
       { '$user.firstName$': { [Op.iLike]: `%${searchTerm}%` } },
       { '$user.lastName$': { [Op.iLike]: `%${searchTerm}%` } },
-      { '$user.email$': { [Op.iLike]: `%${searchTerm}%` } },
+      // { '$user.email$': { [Op.iLike]: `%${searchTerm}%` } },
       { '$user.phone$': { [Op.iLike]: `%${searchTerm}%` } },
       
       // Search for full name combination
