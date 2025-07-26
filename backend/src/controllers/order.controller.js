@@ -83,6 +83,8 @@ export const createOrder = async (req, res) => {
         transaction
       );
     }
+    console.log(coupenResult)
+    return res.json(coupenResult);
 
     const order = await Order.create(
       {
@@ -100,7 +102,7 @@ export const createOrder = async (req, res) => {
       { transaction }
     );
 
-    // console.log(coupenResult)
+    console.log(coupenResult)
 
     await Promise.all(
       coupenResult.appliedCoupons.map((item) =>
@@ -147,14 +149,14 @@ export const createOrder = async (req, res) => {
       }
     }
 
-    for (const item of items) {
-      await Cart.destroy({
-        where: {
-          id: item,
-          userId,
-        },
-      });
-    }
+    // for (const item of items) {
+    //   await Cart.destroy({
+    //     where: {
+    //       id: item,
+    //       userId,
+    //     },
+    //   });
+    // }
 
     await transaction.commit();
 
