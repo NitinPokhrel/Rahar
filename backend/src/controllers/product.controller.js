@@ -15,7 +15,7 @@ export const getProductById = async (req, res) => {
     const productId = req.params.id;
 
     const isAdmin =
-      req.user.role === "admin" &&
+      req.user?.role === "admin" &&
       req.user.permissions.includes("manageProducts");
 
     const product = await Product.findByPk(productId, {
@@ -167,7 +167,7 @@ export const getAllProducts = async (req, res) => {
               ],
         },
       ],
-      order: [[sortBy, sortOrder.toUpperCase()]],
+      // order: [["createdAt", "DESC"]],
       limit: parseInt(limit),
       offset: parseInt(offset),
       distinct: true,
@@ -232,7 +232,9 @@ export const getFeaturedProducts = async (req, res) => {
       limit: parseInt(limit),
     });
 
-    res.status(200).json({ status: "success", data: { products } });
+    res
+      .status(200)
+      .json({ success: true, status: "Successful", data: { products } });
   } catch (error) {
     console.error("Error fetching featured products:", error);
     res.status(500).json({
@@ -614,17 +616,15 @@ export const restoreProduct = async (req, res) => {
       status: "Successful",
       message: "Product restored successfully",
     });
-
   } catch (error) {
     console.error("❌ Error restoring product:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
-}
-
+};
 
 export const createProduct = async (req, res) => {
   const transaction = await sequelize.transaction();
@@ -770,7 +770,7 @@ export const createProduct = async (req, res) => {
     return res.status(201).json({
       success: true,
       status: "Product and variants created successfully",
-      product
+      product,
     });
   } catch (error) {
     await transaction.rollback();
