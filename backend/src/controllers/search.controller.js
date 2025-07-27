@@ -573,7 +573,6 @@ export const searchUsers = async (req, res) => {
         [Op.or]: [
           { firstName: { [Op.iLike]: `%${searchTerm}%` } },
           { lastName: { [Op.iLike]: `%${searchTerm}%` } },
-          { email: { [Op.iLike]: `%${searchTerm}%` } },
           { phone: { [Op.iLike]: `%${searchTerm}%` } },
           // Cast ENUM fields to text for ILIKE search
           Sequelize.literal(`"role"::text ILIKE '%${searchTerm.replace(/'/g, "''")}%'`),
@@ -645,7 +644,7 @@ export const searchOrders = async (req, res) => {
       includeArray.push({
         model: User,
         as: "user",
-        attributes: ["id", "firstName", "lastName", "email", "phone"],
+        attributes: ["id", "firstName", "lastName", "phone"],
         required: false,
       });
     }
@@ -700,6 +699,98 @@ export const searchOrders = async (req, res) => {
   }
 };
 
+export const searchReviews = async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    if (!q || q.trim() === '') {
+      return res.status(400).json({
+        message: "Search query 'q' is required"
+      });
+    }
+
+    const searchTerm = q.trim();
+
+    // Check permissions - admins can search all reviews, users only their own
+    const isAdmin = req.user?.role === "admin" && req.user?.permissions?.includes("manageOrders");
+
+    // Build base where clause
+    const whereClause = {};
+
+    // User restriction for non-admins
+    if (!isAdmin && req.user?.id) {
+      whereClause.userId = req.user.id;
+    }
+
+    // Build include array for associations
+    const includeArray = [
+      {
+        model: User,
+        as: "user",
+        attributes: ["id", "firstName", "lastName", "phone"],
+        required: false
+      },
+      {
+        model: Product,
+        as: "product", 
+        attributes: ["id", "name", "slug", "images"],
+        required: false
+      },
+      {
+        model: Order,
+        as: "order",
+        attributes: ["id", "status", "createdAt"],
+        required: false
+      }
+    ];
+
+    // Search conditions
+    whereClause[Op.or] = [
+      // Search in review comment
+      { comment: { [Op.iLike]: `%${searchTerm}%` } },
+      
+      // Cast numeric rating to text for partial matching
+      Sequelize.literal(`"Review"."rating"::text ILIKE '%${searchTerm.replace(/'/g, "''")}%'`),
+      
+      // Search in user details
+      { '$user.firstName$': { [Op.iLike]: `%${searchTerm}%` } },
+      { '$user.lastName$': { [Op.iLike]: `%${searchTerm}%` } },
+      { '$user.phone$': { [Op.iLike]: `%${searchTerm}%` } },
+      
+      // Search for full name combination
+      Sequelize.literal(`CONCAT("user"."firstName", ' ', "user"."lastName") ILIKE '%${searchTerm.replace(/'/g, "''")}%'`),
+      
+      // Search in product details
+      { '$product.name$': { [Op.iLike]: `%${searchTerm}%` } },
+      { '$product.slug$': { [Op.iLike]: `%${searchTerm}%` } },
+      
+      // Cast order status enum to text for search
+      Sequelize.literal(`"order"."status"::text ILIKE '%${searchTerm.replace(/'/g, "''")}%'`),
+      
+      // Cast date fields to text for search
+      Sequelize.literal(`"Review"."createdAt"::text ILIKE '%${searchTerm.replace(/'/g, "''")}%'`),
+      Sequelize.literal(`"Review"."updatedAt"::text ILIKE '%${searchTerm.replace(/'/g, "''")}%'`)
+    ];
+
+    // Execute search query
+    const { rows: reviews } = await Review.findAndCountAll({
+      where: whereClause,
+      include: includeArray,
+      order: [['createdAt', 'DESC']],
+      distinct: true,
+      subQuery: false
+    });
+
+    res.json({
+      reviews
+    });
+
+  } catch (error) {
+    console.error('Error searching reviews:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 export const searchCoupons = async (req, res) => {
   try {
     const {q} = req.query;
@@ -748,99 +839,6 @@ export const searchCoupons = async (req, res) => {
 
   } catch (error) {
     console.error('Error searching coupons:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-};
-
-export const searchReviews = async (req, res) => {
-  try {
-    const { q } = req.query;
-
-    if (!q || q.trim() === '') {
-      return res.status(400).json({
-        message: "Search query 'q' is required"
-      });
-    }
-
-    const searchTerm = q.trim();
-
-    // Check permissions - admins can search all reviews, users only their own
-    const isAdmin = req.user?.role === "admin" && req.user?.permissions?.includes("manageOrders");
-
-    // Build base where clause
-    const whereClause = {};
-
-    // User restriction for non-admins
-    if (!isAdmin && req.user?.id) {
-      whereClause.userId = req.user.id;
-    }
-
-    // Build include array for associations
-    const includeArray = [
-      {
-        model: User,
-        as: "user",
-        attributes: ["id", "firstName", "lastName", "email", "phone"],
-        required: false
-      },
-      {
-        model: Product,
-        as: "product", 
-        attributes: ["id", "name", "slug", "images"],
-        required: false
-      },
-      {
-        model: Order,
-        as: "order",
-        attributes: ["id", "status", "createdAt"],
-        required: false
-      }
-    ];
-
-    // Search conditions
-    whereClause[Op.or] = [
-      // Search in review comment
-      { comment: { [Op.iLike]: `%${searchTerm}%` } },
-      
-      // Cast numeric rating to text for partial matching
-      Sequelize.literal(`"Review"."rating"::text ILIKE '%${searchTerm.replace(/'/g, "''")}%'`),
-      
-      // Search in user details
-      { '$user.firstName$': { [Op.iLike]: `%${searchTerm}%` } },
-      { '$user.lastName$': { [Op.iLike]: `%${searchTerm}%` } },
-      { '$user.email$': { [Op.iLike]: `%${searchTerm}%` } },
-      { '$user.phone$': { [Op.iLike]: `%${searchTerm}%` } },
-      
-      // Search for full name combination
-      Sequelize.literal(`CONCAT("user"."firstName", ' ', "user"."lastName") ILIKE '%${searchTerm.replace(/'/g, "''")}%'`),
-      
-      // Search in product details
-      { '$product.name$': { [Op.iLike]: `%${searchTerm}%` } },
-      { '$product.slug$': { [Op.iLike]: `%${searchTerm}%` } },
-      
-      // Cast order status enum to text for search
-      Sequelize.literal(`"order"."status"::text ILIKE '%${searchTerm.replace(/'/g, "''")}%'`),
-      
-      // Cast date fields to text for search
-      Sequelize.literal(`"Review"."createdAt"::text ILIKE '%${searchTerm.replace(/'/g, "''")}%'`),
-      Sequelize.literal(`"Review"."updatedAt"::text ILIKE '%${searchTerm.replace(/'/g, "''")}%'`)
-    ];
-
-    // Execute search query
-    const { rows: reviews } = await Review.findAndCountAll({
-      where: whereClause,
-      include: includeArray,
-      order: [['createdAt', 'DESC']],
-      distinct: true,
-      subQuery: false
-    });
-
-    res.json({
-      reviews
-    });
-
-  } catch (error) {
-    console.error('Error searching reviews:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };
