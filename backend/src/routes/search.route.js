@@ -8,7 +8,7 @@ import {
   searchOrders,
   searchReviews,
 } from "../controllers/search.controller.js";
-import { adminMiddleware } from "../middleware/auth.middleware.js";
+import { adminMiddleware, authMiddleware } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
@@ -17,6 +17,7 @@ router.get("/products", searchProducts);
 router.get("/products/suggestions", getProductSearchSuggestions);
 
 // Apply admin middleware to all routes below
+router.use(authMiddleware)
 router.use(adminMiddleware);
 
 // Admin routes

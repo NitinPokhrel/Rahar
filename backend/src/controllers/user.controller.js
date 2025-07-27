@@ -1,7 +1,10 @@
 // controllers/user.controller.js
 import { photoWork } from "../config/photoWork.js";
-import { User } from "../models/index.model.js";
+import { User, Auth } from "../models/index.model.js";
 import { handleError } from "../utils/apiError.js";
+
+import { sendMail } from "../config/sendEmail.js";
+import { generateStrongPassword } from "../utils/tools.js";
 
 // For self update and also by admin
 export const updateUserProfile = async (req, res) => {
@@ -11,7 +14,7 @@ export const updateUserProfile = async (req, res) => {
     if (
       req.user.id !== userId &&
       req.user.role !== "admin" &&
-      req.user.permissions.includes("updateUser") === false
+      !req.user.permissions.includes("manageUsers")
     ) {
       return res.status(403).json({
         success: false,
@@ -22,7 +25,6 @@ export const updateUserProfile = async (req, res) => {
     const {
       firstName,
       lastName,
-      email,
       phone,
       dateOfBirth,
       gender,
@@ -49,7 +51,6 @@ export const updateUserProfile = async (req, res) => {
         avatar = {
           blurhash: photo.blurhash,
           url: photo.secure_url,
-          public_id: photo.public_id,
           height: photo.height,
           width: photo.width,
         };
@@ -64,10 +65,10 @@ export const updateUserProfile = async (req, res) => {
         .json({ success: false, message: "User not found" });
     }
 
-    await user.update({
+    // Use the updateProfile method from the model
+    user.updateProfile({
       firstName: firstName ?? user.firstName,
       lastName: lastName ?? user.lastName,
-      email: email ?? user.email,
       phone: phone ?? user.phone,
       dateOfBirth: dateOfBirth ?? user.dateOfBirth,
       gender: gender ?? user.gender,
@@ -75,8 +76,9 @@ export const updateUserProfile = async (req, res) => {
       avatar: avatar ?? user.avatar,
     });
 
+    await user.save();
+
     const userResponse = user.toJSON();
-    delete userResponse.password;
 
     return res.status(200).json({
       success: true,
@@ -98,7 +100,7 @@ export const updateUserAvatar = async (req, res) => {
     if (
       req.user.id !== userId &&
       req.user.role !== "admin" &&
-      req.user.permissions.includes("updateUser") === false
+      !req.user.permissions.includes("manageUsers")
     ) {
       return res.status(403).json({
         success: false,
@@ -125,7 +127,6 @@ export const updateUserAvatar = async (req, res) => {
     const avatar = {
       blurhash: photo.blurhash,
       url: photo.secure_url,
-      public_id: photo.public_id,
       height: photo.height,
       width: photo.width,
     };
@@ -142,7 +143,6 @@ export const updateUserAvatar = async (req, res) => {
     await user.update({ avatar });
 
     const userResponse = user.toJSON();
-    delete userResponse.password;
 
     return res.status(200).json({
       success: true,
@@ -158,14 +158,55 @@ export const updateUserAvatar = async (req, res) => {
 
 // *********************************************************************************************
 
+// Additional helper functions for the new schema
+
+export const getUserByAuthId = async (req, res) => {
+  try {
+    const { authId } = req.params;
+
+    const user = await User.findOne({
+      where: { authId },
+      include: [
+        {
+          model: Auth,
+          as: "auth",
+          attributes: {
+            exclude: [
+              "password",
+              "passwordResetToken",
+              "emailVerificationToken",
+              "twoFactorSecret",
+            ],
+          },
+        },
+      ],
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "User fetched successfully",
+      data: {
+        user: user,
+      },
+    });
+  } catch (error) {
+    handleError(error, res);
+  }
+};
+
 export const createUser = async (req, res) => {
   try {
     const {
-      clerkUserId,
       firstName,
       lastName,
       email,
-      password,
       phone,
       dateOfBirth,
       gender,
@@ -174,13 +215,20 @@ export const createUser = async (req, res) => {
       province,
       city,
       fullAddress,
+      googleId,
+      provider = "email",
     } = req.body;
 
-    const address = {
-      province,
-      city,
-      fullAddress,
-    };
+    const password = generateStrongPassword(10)
+
+    const address =
+      province && city && fullAddress
+        ? {
+            province,
+            city,
+            fullAddress,
+          }
+        : null;
 
     let avatar;
 
@@ -190,7 +238,6 @@ export const createUser = async (req, res) => {
         const image = {
           blurhash: photo.blurhash,
           url: photo.secure_url,
-          public_id: photo.public_id,
           height: photo.height,
           width: photo.width,
         };
@@ -198,13 +245,20 @@ export const createUser = async (req, res) => {
       }
     }
 
-    // Create new user
-    const newUser = await User.create({
-      clerkUserId,
-      firstName,
-      lastName,
+    // Create Auth record first - emailVerified set to true for admin-created users
+    const auth = await Auth.create({
       email,
       password,
+      googleId,
+      provider,
+      emailVerified: true, // Always true for admin-created users
+    });
+
+    // Create User profile linked to Auth
+    const newUser = await User.create({
+      authId: auth.id,
+      firstName,
+      lastName,
       phone: phone ? phone : null,
       dateOfBirth: dateOfBirth || null,
       gender,
@@ -212,15 +266,107 @@ export const createUser = async (req, res) => {
       permissions: permissions || [],
       address,
       avatar: avatar || null,
-      emailVerified: false,
     });
 
-    const userResponse = newUser.toJSON();
-    delete userResponse.password;
+    // Load the user with auth relationship
+    const userWithAuth = await User.findByPk(newUser.id, {
+      include: [
+        {
+          model: Auth,
+          as: "auth",
+          attributes: { exclude: ["password"] },
+        },
+      ],
+    });
+
+    // Send login credentials email
+    const credentialsEmailOptions = {
+      to: auth.email,
+      subject: "🎉 Welcome! Your Account Has Been Created",
+      html: `
+    <div style="margin:0; padding:0; background:#f4f4f4; font-family:'Helvetica Neue', Arial, sans-serif;">
+      <table align="center" cellpadding="0" cellspacing="0" width="100%" style="max-width:600px; margin:auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 8px 30px rgba(0,0,0,0.08);">
+        
+        <!-- Header -->
+        <tr>
+          <td style="background:linear-gradient(90deg,#000000,#1a1a1a); color:#ffffff; padding:40px 30px; text-align:center;">
+            <h2 style="margin:0; font-size:26px; letter-spacing:1px;">Account Created Successfully</h2>
+            <p style="margin-top:10px; font-size:15px; font-style:italic; color:#ccc;">Welcome to <strong>${
+              process.env.COMPANY_NAME
+            }</strong></p>
+          </td>
+        </tr>
+        
+        <!-- Body -->
+        <tr>
+          <td style="padding:40px 30px;">
+            <p style="font-size:16px; color:#333; margin-bottom:20px;">
+              Hi <strong>${firstName} ${lastName}</strong>,
+            </p>
+            
+            <p style="font-size:16px; color:#333; margin-bottom:20px;">
+              Your account has been successfully created by our admin team. You can now access your account using the credentials below:
+            </p>
+            
+            <!-- Credentials Box -->
+            <div style="background:#f8f9fa; border:1px solid #e9ecef; border-radius:8px; padding:20px; margin:30px 0;">
+              <h3 style="margin:0 0 15px 0; color:#333; font-size:18px;">Your Login Credentials</h3>
+              <div style="margin-bottom:12px;">
+                <strong style="color:#666; font-size:14px;">Email/Login ID:</strong>
+                <div style="background:#fff; padding:8px 12px; border-radius:4px; border:1px solid #ddd; margin-top:4px; font-family:monospace; color:#333;">
+                  ${email}
+                </div>
+              </div>
+              <div style="margin-bottom:12px;">
+                <strong style="color:#666; font-size:14px;">Password:</strong>
+                <div style="background:#fff; padding:8px 12px; border-radius:4px; border:1px solid #ddd; margin-top:4px; font-family:monospace; color:#333;">
+                  ${password}
+                </div>
+              </div>
+            </div>
+            
+            <div style="text-align:center; margin: 40px 0;">
+              <a href="${
+                process.env.CLIENT_URL || "#"
+              }/login" style="background-color:#ff3366; color:white; padding:14px 32px; font-size:16px; border-radius:8px; text-decoration:none; display:inline-block; font-weight:bold; box-shadow:0 4px 14px rgba(255,51,102,0.4);">
+                🚀 Login to Your Account
+              </a>
+            </div>
+            
+            <div style="background:#fff3cd; border:1px solid #ffeaa7; border-radius:6px; padding:15px; margin:20px 0;">
+              <p style="margin:0; font-size:14px; color:#856404;">
+                <strong>🔒 Security Tip:</strong> For your security, we recommend changing your password after your first login.
+              </p>
+            </div>
+            
+            <p style="font-size:13px; color:#999; margin-top:30px;">
+              If you have any questions or need assistance, please don't hesitate to contact our support team.
+            </p>
+          </td>
+        </tr>
+        
+        <!-- Footer -->
+        <tr>
+          <td style="background:#fafafa; text-align:center; padding:20px; font-size:12px; color:#aaa;">
+            &copy; ${new Date().getFullYear()} ${
+        process.env.COMPANY_NAME
+      }. All rights reserved.<br/>
+            Stay fierce. Stay fashionable.
+          </td>
+        </tr>
+      </table>
+    </div>
+  `,
+    };
+
+    // Send the credentials email
+    await sendMail(credentialsEmailOptions);
+
+    const userResponse = userWithAuth.toJSON();
 
     return res.status(201).json({
       success: true,
-      message: "User created successfully",
+      message: "User created successfully and credentials sent via email",
       data: {
         user: userResponse,
       },
@@ -230,13 +376,12 @@ export const createUser = async (req, res) => {
   }
 };
 
-
 export const updateUserPermissions = async (req, res) => {
   try {
     const { userId } = req.params;
-
     const { permissions } = req.body;
 
+    // Check if requesting user has permission to grant these permissions
     const unauthorized = permissions.filter(
       (p) => !req.user.permissions.includes(p)
     );
@@ -261,7 +406,6 @@ export const updateUserPermissions = async (req, res) => {
     });
 
     const userResponse = user.toJSON();
-    delete userResponse.password;
 
     return res.status(200).json({
       success: true,
@@ -281,8 +425,19 @@ export const getUserProfile = async (req, res) => {
     const userId = req.params.userId;
 
     const user = await User.findByPk(userId, {
-      attributes: { exclude: ["password"] },
       include: [
+        {
+          model: Auth,
+          as: "auth",
+          attributes: {
+            exclude: [
+              "password",
+              "passwordResetToken",
+              "emailVerificationToken",
+              "twoFactorSecret",
+            ],
+          },
+        },
         {
           association: "orders",
         },
@@ -309,6 +464,47 @@ export const getUserProfile = async (req, res) => {
       message: "Profile fetched successfully",
       status: "success",
       data: user,
+    });
+  } catch (error) {
+    handleError(error, res);
+  }
+};
+
+export const updateUserPreferences = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { preferences } = req.body;
+
+    if (req.user.id !== userId && req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to update this user's preferences",
+      });
+    }
+
+    const user = await User.findByPk(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Merge with existing preferences
+    const updatedPreferences = {
+      ...user.preferences,
+      ...preferences,
+    };
+
+    await user.update({ preferences: updatedPreferences });
+
+    return res.status(200).json({
+      success: true,
+      message: "Preferences updated successfully",
+      data: {
+        user: user,
+      },
     });
   } catch (error) {
     handleError(error, res);

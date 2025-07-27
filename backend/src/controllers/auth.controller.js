@@ -48,7 +48,7 @@ const generateAndStoreTokens = async (authId, userId, req) => {
 
   // Generate JWT tokens
   const accessToken = jwt.sign({ authId, userId }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || "5m",
+    expiresIn: process.env.JWT_EXPIRES_IN || "8m",
   });
 
   const refreshToken = jwt.sign(
@@ -347,7 +347,6 @@ export const authenticateWithGoogle = async (req, res) => {
 // Refresh access token
 export const refreshToken = async (req, res) => {
   try {
-    console.log(req.cookies);
 
     const refreshToken = req.cookies.refreshToken;
 
