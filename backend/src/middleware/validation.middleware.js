@@ -156,14 +156,6 @@ export const validatePasswordChange = [
   handleValidationErrors,
 ];
 
-// Refresh token validation
-export const validateRefreshToken = [
-  body("refreshToken")
-    .notEmpty()
-    .withMessage("Refresh token is required"),
-  
-  handleValidationErrors,
-];
 
 // Account suspension validation
 export const validateAccountSuspension = [

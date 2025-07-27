@@ -347,6 +347,8 @@ export const authenticateWithGoogle = async (req, res) => {
 // Refresh access token
 export const refreshToken = async (req, res) => {
   try {
+    console.log(req.cookies);
+
     const refreshToken = req.cookies.refreshToken;
 
     if (!refreshToken) {

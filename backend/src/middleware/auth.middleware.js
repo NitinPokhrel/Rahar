@@ -10,7 +10,8 @@ export const authMiddleware = async (req, res, next) => {
     if (!token) {
       return res.status(401).json({
         success: false,
-        message: "Access token required",
+        status: "Not authorized",
+        message: "You need to login first",
       });
     }
 
