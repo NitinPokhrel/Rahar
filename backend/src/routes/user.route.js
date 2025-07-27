@@ -9,7 +9,7 @@ import {
   updateUserPermissions,
   updateUserProfile,
 } from "../controllers/user.controller.js";
-import { permissionMiddleware } from "../middleware/auth.middleware.js";
+import { authMiddleware, permissionMiddleware } from "../middleware/auth.middleware.js";
 import upload from "../config/multer.js";
 
 const router = Router();
@@ -17,6 +17,8 @@ const router = Router();
 // Public routes (no auth required)
 router.get("/", getUserProfile);
 router.patch("/", updateUserProfile);
+
+router.use(authMiddleware);
 
 // Auth required routes
 router.patch("/:userId/updateAvatar", 

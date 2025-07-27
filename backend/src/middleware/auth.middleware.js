@@ -4,6 +4,7 @@ import crypto from "crypto";
 
 export const authMiddleware = async (req, res, next) => {
   try {
+
     const token = req.cookies.accessToken;
 
     if (!token) {
@@ -13,17 +14,8 @@ export const authMiddleware = async (req, res, next) => {
       });
     }
 
-    // After jwt.verify
+    // Verify JWT token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Later, you could add additional validation
-    if (decoded.authId !== authToken.auth.id) {
-      return res.status(401).json({
-        success: false,
-        status: "Not authorized",
-        message: "Token mismatch",
-      });
-    }
 
     // Hash the token to compare with database
     const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
@@ -44,10 +36,28 @@ export const authMiddleware = async (req, res, next) => {
       ],
     });
 
-    if (!authToken || authToken.isExpired()) {
+    // Check if token exists in database
+    if (!authToken) {
       return res.status(401).json({
         success: false,
-        message: "Invalid or expired token",
+        message: "Invalid token",
+      });
+    }
+
+    // Validate token ownership (now that authToken is defined)
+    if (decoded.authId !== authToken.auth.id) {
+      return res.status(401).json({
+        success: false,
+        status: "Not authorized",
+        message: "Token mismatch",
+      });
+    }
+
+    // Check if token is expired
+    if (authToken.isExpired()) {
+      return res.status(401).json({
+        success: false,
+        message: "Expired token",
       });
     }
 
@@ -97,7 +107,7 @@ export const authMiddleware = async (req, res, next) => {
 
     res.status(500).json({
       success: false,
-      message: "Authentication error",
+      message: error.message || "Internal server error",
     });
   }
 };
@@ -116,6 +126,8 @@ export const adminMiddleware = (req, res, next) => {
 // Middleware to check specific permissions
 export const permissionMiddleware = (requiredPermission) => {
   return (req, res, next) => {
+
+
     if (
       req.user.role === "admin" &&
       req.user.permissions.includes(requiredPermission)

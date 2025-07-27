@@ -7,7 +7,7 @@ import {
   getCategoryBySlug,
   restoreCategory,
 } from "../controllers/category.controller.js";
-import { permissionMiddleware } from "../middleware/auth.middleware.js";
+import { authMiddleware, permissionMiddleware } from "../middleware/auth.middleware.js";
 import upload from "../config/multer.js";
 
 const router = Router();
@@ -15,6 +15,9 @@ const router = Router();
 // Public routes
 router.get("/", getCategories);
 router.get("/:slug", getCategoryBySlug);
+
+// Apply auth middleware to all routes below
+router.use(authMiddleware);
 
 // Apply admin middleware to all routes below
 router.use(permissionMiddleware("manageCategories"));
