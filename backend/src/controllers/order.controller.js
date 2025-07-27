@@ -147,14 +147,14 @@ export const createOrder = async (req, res) => {
       }
     }
 
-    // for (const item of items) {
-    //   await Cart.destroy({
-    //     where: {
-    //       id: item,
-    //       userId,
-    //     },
-    //   });
-    // }
+    for (const item of items) {
+      await Cart.destroy({
+        where: {
+          id: item,
+          userId,
+        },
+      });
+    }
 
     await transaction.commit();
 

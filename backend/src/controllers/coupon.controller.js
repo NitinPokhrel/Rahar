@@ -218,7 +218,6 @@ export const updateCoupon = async (req, res) => {
 };
 
 
-
 export const removeCoupon = async (req, res) => {
   const { couponId } = req.params;
 
@@ -391,7 +390,7 @@ export const getCouponUsage = async (req, res) => {
       limit: parseInt(limit),
       offset: parseInt(offset),
     });
-
+ 
     return res.status(200).json({
       success: true,
       data: {
@@ -450,6 +449,7 @@ export const getAllCoupons = async (req, res) => {
 
 
 export const applyCouponToOrder = async (couponCodes, userId, orderProducts, transaction = null) => {
+  console.log(orderProducts, "orderProducts in applyCouponToOrder");
     try {
         const applySingleCoupon = async (coupon, userId, orderProducts, transaction) => {
             try {
@@ -787,6 +787,131 @@ export const applyCouponToOrder = async (couponCodes, userId, orderProducts, tra
     }
 };
 
-export const applyCoupon = async (req, res) => {}
+export const applyCoupon = async (req, res) => {
+    try {
+        const {  cartItems, couponCodes } = req.body;
+        const userId = req.user.id; 
+
+        console.log(cartItems, "Request body for applyCoupon API");
+
+        // Input validation
+        if (!userId) {
+            return res.status(400).json({
+                success: false,
+                message: "User ID is required",
+                totalDiscountAmount: 0,
+                updatedProducts: cartItems || [],
+                appliedCoupons: [],
+                failedCoupons: [],
+            });
+        }
+
+        if (!cartItems || cartItems.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Cart items are required",
+                totalDiscountAmount: 0,
+                updatedProducts: [],
+                appliedCoupons: [],
+                failedCoupons: couponCodes ? (Array.isArray(couponCodes) ? couponCodes : [couponCodes]).map(code => ({
+                    code,
+                    reason: "No items in cart"
+                })) : [],
+            });
+        }
+
+        if (!couponCodes) {
+            return res.status(400).json({
+                success: false,
+                message: "Coupon codes are required",
+                totalDiscountAmount: 0,
+                updatedProducts: cartItems,
+                appliedCoupons: [],
+                failedCoupons: [],
+            });
+        }
+
+        // Transform cartItems to match the expected orderProducts format
+        const orderProducts = cartItems.map(item => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            product: item.product ,
+            variant: item.variant,
+            // Preserve any existing applied coupons for preview updates
+            appliedCoupons: item.appliedCoupons || []
+        }));
+
+        // Call the existing applyCouponToOrder function with no transaction (read-only)
+        const result = await applyCouponToOrder(
+            couponCodes,
+            userId,
+            orderProducts,
+            null // No transaction - this ensures no database writes
+        );
+
+        // Transform the result back to match frontend expectations
+        const response = {
+            success: result.success,
+            message: result.message,
+            totalDiscountAmount: result.totalDiscountAmount,
+            appliedCoupons: result.appliedCoupons.map(coupon => ({
+                couponId: coupon.couponId,
+                couponCode: coupon.couponCode,
+                discountAmount: coupon.discountAmount,
+                couponDetails: {
+                    id: coupon.couponDetails.id,
+                    code: coupon.couponDetails.code,
+                    name: coupon.couponDetails.name,
+                    type: coupon.couponDetails.type,
+                    value: coupon.couponDetails.value,
+                    maxDiscountAmount: coupon.couponDetails.maxDiscountAmount,
+                }
+            })),
+            failedCoupons: result.failedCoupons,
+            updatedCartItems: result.updatedProducts.map(product => ({
+                productId: product.productId,
+                quantity: product.quantity,
+                product: product.product,
+                variant: product.variant,
+                appliedCoupons: product.appliedCoupons || [],
+                // Calculate individual item discount for frontend display
+                itemDiscount: product.appliedCoupons ? 
+                    product.appliedCoupons.reduce((sum, coupon) => sum + coupon.discountAmount, 0) : 0
+            })),
+            // Additional summary for frontend
+            summary: {
+                subtotal: orderProducts.reduce((sum, product) => {
+                    const unitPrice = product.variant
+                        ? parseFloat(product.variant.price)
+                        : parseFloat(product.product.price);
+                    return sum + (unitPrice * product.quantity);
+                }, 0),
+                totalDiscount: result.totalDiscountAmount,
+                finalAmount: orderProducts.reduce((sum, product) => {
+                    const unitPrice = product.variant
+                        ? parseFloat(product.variant.price)
+                        : parseFloat(product.product.price);
+                    return sum + (unitPrice * product.quantity);
+                }, 0) - result.totalDiscountAmount,
+                appliedCouponsCount: result.appliedCoupons.length,
+                failedCouponsCount: result.failedCoupons.length
+            }
+        };
+
+        return res.status(200).json(response);
+
+    } catch (error) {
+        console.error("Error in applyCoupon API:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error while applying coupon",
+            totalDiscountAmount: 0,
+            updatedCartItems: req.body.cartItems || [],
+            appliedCoupons: [],
+            failedCoupons: [],
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+};
 
 
