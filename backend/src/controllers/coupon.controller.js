@@ -1,5 +1,6 @@
-import { Coupon, CouponUsage, Product } from "../models/index.model.js";
+import { Coupon, CouponUsage, Product,Order,OrderCoupon,sequelize } from "../models/index.model.js";
 import { Op } from "sequelize";
+
 
 // api
 export const createCoupon = async (req, res) => {
@@ -216,46 +217,6 @@ export const updateCoupon = async (req, res) => {
   }
 };
 
-export const applyCoupon = async (req, res) => {
-  const { code, cart } = req.body;
-  const userId = req.user.id;
-  try {
-    // Input validation
-    if (!code || !userId || !cart || !Array.isArray(cart)) {
-      return res.status(400).json({
-        success: false,
-        message: "Code, userId, and cart are required",
-      });
-    }
-
-    if (cart.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Cart cannot be empty",
-      });
-    }
-
-    let data = await checkDiscountAmount(
-      couponCodes,
-      userId,
-      products,
-      (transaction = null)
-    );
-
-    return res.status(200).json({
-      success: true,
-      data,
-      message: "Coupon applied successfully",
-    });
-  } catch (error) {
-    console.error("Apply coupon error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to apply coupon",
-      error: process.env.NODE_ENV === "development" ? error.message : undefined,
-    });
-  }
-};
 
 export const removeCoupon = async (req, res) => {
   const { couponId } = req.params;
@@ -429,7 +390,7 @@ export const getCouponUsage = async (req, res) => {
       limit: parseInt(limit),
       offset: parseInt(offset),
     });
-
+ 
     return res.status(200).json({
       success: true,
       data: {
@@ -486,367 +447,471 @@ export const getAllCoupons = async (req, res) => {
 
 // ************************************************************************************************
 
-export async function applyCouponToOrder(
-  couponCodes,
-  userId,
-  orderProducts,
-  transaction = null
-) {
-  let totalDiscountAmount = 0;
-  let updatedProducts = [...orderProducts];
-  const appliedCoupons = [];
-  const failedCoupons = [];
 
-  // Ensure couponCodes is always an array
-  const codesArray = Array.isArray(couponCodes) ? couponCodes : [couponCodes];
-  console.log(codesArray, "couponCodes");
-
-  async function applySingleCoupon(
-    couponId,
-    userId,
-    orderProducts,
-    transaction
-  ) {
+export const applyCouponToOrder = async (couponCodes, userId, orderProducts, transaction = null) => {
+  console.log(orderProducts, "orderProducts in applyCouponToOrder");
     try {
-      // Step 1: Validate coupon existence and basic properties
-      const coupon = await Coupon.findByPk(couponId, { transaction });
-      if (!coupon) {
-        return {
-          success: false,
-          message: "Coupon not found",
-          discountAmount: 0,
-          updatedProducts: orderProducts,
+        const applySingleCoupon = async (coupon, userId, orderProducts, transaction) => {
+            try {
+                // Step 1: Validate coupon status and dates
+                const now = new Date();
+                if (!coupon.isActive) {
+                    return {
+                        success: false,
+                        message: "Coupon is not active",
+                        discountAmount: 0,
+                        updatedProducts: orderProducts,
+                    };
+                }
+                if (coupon.startDate && new Date(coupon.startDate) > now) {
+                    return {
+                        success: false,
+                        message: "Coupon is not yet valid",
+                        discountAmount: 0,
+                        updatedProducts: orderProducts,
+                    };
+                }
+                if (coupon.endDate && new Date(coupon.endDate) < now) {
+                    return {
+                        success: false,
+                        message: "Coupon has expired",
+                        discountAmount: 0,
+                        updatedProducts: orderProducts,
+                    };
+                }
+
+                // Step 2: Check overall usage limit
+                if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
+                    return {
+                        success: false,
+                        message: "Coupon usage limit exceeded",
+                        discountAmount: 0,
+                        updatedProducts: orderProducts,
+                    };
+                }
+
+                // Step 3: Get existing coupon usage for this user from OrderCoupon table
+                const existingUsages = await OrderCoupon.findAll({
+                    include: [
+                        {
+                            model: Order,
+                            where: { userId },
+                            required: true,
+                        },
+                    ],
+                    where: { couponId: coupon.id },
+                    transaction,
+                });
+
+                console.log(`Existing usages for user ${userId} and coupon ${coupon.id}:`, existingUsages.length);
+
+                const userUsageCount = existingUsages.length;
+
+                // Check per-user usage limit
+                if (coupon.usageLimitPerUser && userUsageCount >= coupon.usageLimitPerUser) {
+                    return {
+                        success: false,
+                        message: "You have reached the usage limit for this coupon",
+                        discountAmount: 0,
+                        updatedProducts: orderProducts,
+                    };
+                }
+
+                // Step 4: Determine eligible products
+                let eligibleProducts = [...orderProducts];
+
+                // Filter by applicable products if not global
+                if (!coupon.isGlobal && coupon.applicableProducts && coupon.applicableProducts.length > 0) {
+                    eligibleProducts = orderProducts.filter((product) =>
+                        coupon.applicableProducts.includes(product.productId)
+                    );
+                    if (eligibleProducts.length === 0) {
+                        return {
+                            success: false,
+                            message: "Coupon is not applicable to any products in your order",
+                            discountAmount: 0,
+                            updatedProducts: orderProducts,
+                        };
+                    }
+                }
+
+                console.log(`Eligible products: ${eligibleProducts.length}`);
+                if (eligibleProducts.length === 0) {
+                    return {
+                        success: false,
+                        message: "No products available for this coupon",
+                        discountAmount: 0,
+                        updatedProducts: orderProducts,
+                    };
+                }
+
+                // Step 5: Calculate total order amount for minimum amount validation
+                const totalEligibleAmount = eligibleProducts.reduce((sum, product) => {
+                    const unitPrice = product.variant
+                        ? parseFloat(product.variant.price)
+                        : parseFloat(product.product.price);
+                    return sum + (unitPrice * product.quantity);
+                }, 0);
+
+                console.log(`Total eligible amount: ${totalEligibleAmount}, Minimum required: ${coupon.minimumAmount}`);
+
+                // Check minimum amount requirement BEFORE calculating discount
+                if (coupon.minimumAmount && totalEligibleAmount < coupon.minimumAmount) {
+                    return {
+                        success: false,
+                        message: `Minimum order amount of $${coupon.minimumAmount} required for eligible products. Current eligible amount: $${totalEligibleAmount.toFixed(2)}`,
+                        discountAmount: 0,
+                        updatedProducts: orderProducts,
+                    };
+                }
+
+                // Step 6: Calculate remaining usage for this user
+                const remainingUsage = coupon.usageLimitPerUser
+                    ? coupon.usageLimitPerUser - userUsageCount
+                    : 1; // Default to 1 usage per order if no limit specified
+
+                if (remainingUsage <= 0) {
+                    return {
+                        success: false,
+                        message: "You have reached the usage limit for this coupon",
+                        discountAmount: 0,
+                        updatedProducts: orderProducts,
+                    };
+                }
+
+                // Step 7: Calculate discount amount
+                let discountAmount = coupon.type === "percentage" ?
+                    (totalEligibleAmount * parseFloat(coupon.value)) / 100 :
+                    Math.min(parseFloat(coupon.value), totalEligibleAmount);
+
+                console.log(`Calculated discount amount: $${discountAmount}`);
+
+                // Apply max discount limit for percentage coupons
+                if (coupon.type === "percentage" && coupon.maxDiscountAmount) {
+                    discountAmount = Math.min(discountAmount, parseFloat(coupon.maxDiscountAmount));
+                }
+
+                // Apply max discount limit for fixed coupons (if specified)
+                if (coupon.type === "fixed" && coupon.maxDiscountAmount) {
+                    discountAmount = Math.min(discountAmount, parseFloat(coupon.maxDiscountAmount));
+                }
+
+                // Round to 2 decimal places
+                console.log(`Discount amount before rounding: $${discountAmount}`);
+                discountAmount = Math.round(discountAmount * 100) / 100;
+                console.log(`Final discount amount after all checks: $${discountAmount}`);
+
+                // Ensure discount is positive
+                if (discountAmount <= 0) {
+                    return {
+                        success: false,
+                        message: "No discount applicable",
+                        discountAmount: 0,
+                        updatedProducts: orderProducts,
+                    };
+                }
+
+                // Step 8: Update order products with applied coupon
+                const updatedProducts = orderProducts.map((product) => {
+                    if (eligibleProducts.some(p => p.productId === product.productId)) {
+                        if (!product.appliedCoupons) {
+                            product.appliedCoupons = [];
+                        }
+                        product.appliedCoupons.push({
+                            couponId: coupon.id,
+                            couponCode: coupon.code,
+                            discountAmount: discountAmount,
+                            appliedToPrice: totalEligibleAmount,
+                            couponType: coupon.type,
+                            couponValue: coupon.value,
+                        });
+                    }
+                    return product;
+                });
+
+                console.log(`Updated products after applying coupon: ${updatedProducts.length}`);
+                return {
+                    success: true,
+                    message: `Coupon ${coupon.code} applied successfully`,
+                    discountAmount: Math.round(discountAmount * 100) / 100,
+                    usageCount: 1, // One usage per coupon application
+                    updatedProducts: updatedProducts,
+                    couponDetails: {
+                        id: coupon.id,
+                        code: coupon.code,
+                        name: coupon.name,
+                        type: coupon.type,
+                        value: coupon.value,
+                        maxDiscountAmount: coupon.maxDiscountAmount,
+                    },
+                };
+
+            } catch (error) {
+                console.error(`Error processing coupon ${coupon.code}:`, error);
+                return {
+                    success: false,
+                    message: "Error processing coupon",
+                    discountAmount: 0,
+                    updatedProducts: orderProducts,
+                    error: error.message,
+                };
+            }
         };
-      }
 
-      // Step 2: Validate coupon status and dates
-      const now = new Date();
-      if (!coupon.isActive) {
+        // Ensure couponCodes is always an array
+        const codesArray = Array.isArray(couponCodes) ? couponCodes : [couponCodes];
+
+        // Step 1: Validate input
+        if (!codesArray || codesArray.length === 0) {
+            return {
+                success: false,
+                totalDiscountAmount: 0,
+                updatedProducts: orderProducts,
+                appliedCoupons: [],
+                failedCoupons: [],
+            };
+        }
+
+        if (!orderProducts || orderProducts.length === 0) {
+            return {
+                success: false,
+                totalDiscountAmount: 0,
+                updatedProducts: [],
+                appliedCoupons: [],
+                failedCoupons: codesArray.map((code) => ({
+                    code: code,
+                    reason: "No products in order",
+                })),
+            };
+        }
+
+        // Step 2: Get coupons by codes
+        const coupons = await Coupon.findAll({
+            where: {
+                code: {
+                    [Op.in]: codesArray
+                }
+            },
+            transaction,
+        });
+
+        if (coupons.length === 0) {
+            return {
+                success: false,
+                totalDiscountAmount: 0,
+                updatedProducts: orderProducts,
+                appliedCoupons: [],
+                failedCoupons: codesArray.map((code) => ({
+                    code: code,
+                    reason: "Coupon not found",
+                })),
+            };
+        }
+
+        // Step 3: Check for codes that weren't found
+        const foundCodes = coupons.map(c => c.code);
+        const notFoundCodes = codesArray.filter(code => !foundCodes.includes(code));
+        const failedCoupons = notFoundCodes.map(code => ({
+            code: code,
+            reason: "Coupon not found",
+        }));
+
+        // Step 4: Sort coupons by priority (percentage first, then by value descending)
+        // This ensures optimal discount application
+        const sortedCoupons = coupons.sort((a, b) => {
+            if (a.type === "percentage" && b.type === "fixed") return -1;
+            if (a.type === "fixed" && b.type === "percentage") return 1;
+            return parseFloat(b.value) - parseFloat(a.value);
+        });
+
+        let totalDiscountAmount = 0;
+        let updatedProducts = [...orderProducts];
+        const appliedCoupons = [];
+
+        // Step 5: Apply each coupon sequentially
+        for (const coupon of sortedCoupons) {
+            console.log(`Processing coupon: ${coupon.code}`);
+            console.log(userId, "userId");
+            console.log(updatedProducts, "updatedProducts");
+
+            const result = await applySingleCoupon(
+                coupon,
+                userId,
+                updatedProducts,
+                transaction
+            );
+            console.log(result, "result of applySingleCoupon");
+
+            if (result.success) {
+                totalDiscountAmount += result.discountAmount;
+                updatedProducts = result.updatedProducts;
+                appliedCoupons.push({
+                    couponId: coupon.id,
+                    couponCode: coupon.code,
+                    discountAmount: result.discountAmount,
+                    usageCount: result.usageCount,
+                    couponDetails: result.couponDetails,
+                });
+            } else {
+                failedCoupons.push({
+                    couponId: coupon.id,
+                    couponCode: coupon.code,
+                    reason: result.message,
+                });
+            }
+        }
+
+        // Step 6: Return final result
         return {
-          success: false,
-          message: "Coupon is not active",
-          discountAmount: 0,
-          updatedProducts: orderProducts,
+            success: appliedCoupons.length > 0,
+            totalDiscountAmount: Math.round(totalDiscountAmount * 100) / 100,
+            updatedProducts: updatedProducts,
+            appliedCoupons: appliedCoupons,
+            failedCoupons: failedCoupons,
+            message: appliedCoupons.length > 0 
+                ? `Successfully applied ${appliedCoupons.length} coupon(s)` 
+                : "No coupons could be applied",
         };
-      }
 
-      if (coupon.startDate && new Date(coupon.startDate) > now) {
+    } catch (error) {
+        console.error("Error applying coupon to order:", error);
         return {
-          success: false,
-          message: "Coupon is not yet valid",
-          discountAmount: 0,
-          updatedProducts: orderProducts,
+            success: false,
+            message: "Error applying coupon",
+            totalDiscountAmount: 0,
+            updatedProducts: orderProducts,
+            appliedCoupons: [],
+            failedCoupons: [],
+            error: error.message,
         };
-      }
+    }
+};
 
-      if (coupon.endDate && new Date(coupon.endDate) < now) {
-        return {
-          success: false,
-          message: "Coupon has expired",
-          discountAmount: 0,
-          updatedProducts: orderProducts,
-        };
-      }
+export const applyCoupon = async (req, res) => {
+    try {
+        const {  cartItems, couponCodes } = req.body;
+        const userId = req.user.id; 
 
-      // Additional validation: Check if coupon is soft deleted
-      if (coupon.deletedAt) {
-        return {
-          success: false,
-          message: "Coupon is no longer available",
-          discountAmount: 0,
-          updatedProducts: orderProducts,
-        };
-      }
+        console.log(cartItems, "Request body for applyCoupon API");
 
-      // Step 3: Check overall usage limit
-      if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
-        return {
-          success: false,
-          message: "Coupon usage limit exceeded",
-          discountAmount: 0,
-          updatedProducts: orderProducts,
-        };
-      }
+        // Input validation
+        if (!userId) {
+            return res.status(400).json({
+                success: false,
+                message: "User ID is required",
+                totalDiscountAmount: 0,
+                updatedProducts: cartItems || [],
+                appliedCoupons: [],
+                failedCoupons: [],
+            });
+        }
 
-      // Step 4: Get existing coupon usage for this user
-      const existingUsages = await CouponUsage.findAll({
-        where: { userId, couponId },
-        transaction,
-      });
+        if (!cartItems || cartItems.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Cart items are required",
+                totalDiscountAmount: 0,
+                updatedProducts: [],
+                appliedCoupons: [],
+                failedCoupons: couponCodes ? (Array.isArray(couponCodes) ? couponCodes : [couponCodes]).map(code => ({
+                    code,
+                    reason: "No items in cart"
+                })) : [],
+            });
+        }
 
-      const userUsageCount = existingUsages.length;
-      const usedProductIds = existingUsages.map((usage) => usage.productId);
+        if (!couponCodes) {
+            return res.status(400).json({
+                success: false,
+                message: "Coupon codes are required",
+                totalDiscountAmount: 0,
+                updatedProducts: cartItems,
+                appliedCoupons: [],
+                failedCoupons: [],
+            });
+        }
 
-      if (
-        coupon.usageLimitPerUser &&
-        userUsageCount >= coupon.usageLimitPerUser
-      ) {
-        return {
-          success: false,
-          message: "User coupon usage limit exceeded",
-          discountAmount: 0,
-          updatedProducts: orderProducts,
-        };
-      }
+        // Transform cartItems to match the expected orderProducts format
+        const orderProducts = cartItems.map(item => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            product: item.product ,
+            variant: item.variant,
+            // Preserve any existing applied coupons for preview updates
+            appliedCoupons: item.appliedCoupons || []
+        }));
 
-      // Step 5: Check if coupon is applicable to products (if not global)
-      let eligibleProducts = [...orderProducts];
-
-      if (
-        !coupon.isGlobal &&
-        coupon.applicableProducts &&
-        coupon.applicableProducts.length > 0
-      ) {
-        eligibleProducts = orderProducts.filter((product) =>
-          coupon.applicableProducts.includes(product.productId)
+        // Call the existing applyCouponToOrder function with no transaction (read-only)
+        const result = await applyCouponToOrder(
+            couponCodes,
+            userId,
+            orderProducts,
+            null // No transaction - this ensures no database writes
         );
 
-        if (eligibleProducts.length === 0) {
-          return {
-            success: false,
-            message: "Coupon is not applicable to any products in the order",
-            discountAmount: 0,
-            updatedProducts: orderProducts,
-          };
-        }
-      }
-
-      // Step 6: Filter out products already used with this coupon by this user
-      const availableProducts = eligibleProducts.filter(
-        (product) => !usedProductIds.includes(product.productId)
-      );
-
-      if (availableProducts.length === 0) {
-        return {
-          success: false,
-          message:
-            "You have already used this coupon on all applicable products",
-          discountAmount: 0,
-          updatedProducts: orderProducts,
+        // Transform the result back to match frontend expectations
+        const response = {
+            success: result.success,
+            message: result.message,
+            totalDiscountAmount: result.totalDiscountAmount,
+            appliedCoupons: result.appliedCoupons.map(coupon => ({
+                couponId: coupon.couponId,
+                couponCode: coupon.couponCode,
+                discountAmount: coupon.discountAmount,
+                couponDetails: {
+                    id: coupon.couponDetails.id,
+                    code: coupon.couponDetails.code,
+                    name: coupon.couponDetails.name,
+                    type: coupon.couponDetails.type,
+                    value: coupon.couponDetails.value,
+                    maxDiscountAmount: coupon.couponDetails.maxDiscountAmount,
+                }
+            })),
+            failedCoupons: result.failedCoupons,
+            updatedCartItems: result.updatedProducts.map(product => ({
+                productId: product.productId,
+                quantity: product.quantity,
+                product: product.product,
+                variant: product.variant,
+                appliedCoupons: product.appliedCoupons || [],
+                // Calculate individual item discount for frontend display
+                itemDiscount: product.appliedCoupons ? 
+                    product.appliedCoupons.reduce((sum, coupon) => sum + coupon.discountAmount, 0) : 0
+            })),
+            // Additional summary for frontend
+            summary: {
+                subtotal: orderProducts.reduce((sum, product) => {
+                    const unitPrice = product.variant
+                        ? parseFloat(product.variant.price)
+                        : parseFloat(product.product.price);
+                    return sum + (unitPrice * product.quantity);
+                }, 0),
+                totalDiscount: result.totalDiscountAmount,
+                finalAmount: orderProducts.reduce((sum, product) => {
+                    const unitPrice = product.variant
+                        ? parseFloat(product.variant.price)
+                        : parseFloat(product.product.price);
+                    return sum + (unitPrice * product.quantity);
+                }, 0) - result.totalDiscountAmount,
+                appliedCouponsCount: result.appliedCoupons.length,
+                failedCouponsCount: result.failedCoupons.length
+            }
         };
-      }
 
-      // Step 7: Calculate remaining usage for this user
-      const remainingUsage = coupon.usageLimitPerUser
-        ? coupon.usageLimitPerUser - userUsageCount
-        : Number.MAX_SAFE_INTEGER;
+        return res.status(200).json(response);
 
-      // Step 8: Check minimum amount requirement
-      const totalOrderAmount = eligibleProducts.reduce((sum, product) => {
-        const unitPrice = product.variant
-          ? parseFloat(product.variant.price)
-          : parseFloat(product.product.price);
-        return sum + unitPrice * product.quantity;
-      }, 0);
-
-      console.log(totalOrderAmount, "total ordered amount");
-      if (coupon.minimumAmount && totalOrderAmount < coupon.minimumAmount) {
-        return {
-          success: false,
-          message: `Minimum order amount of ${coupon.minimumAmount} required`,
-          discountAmount: 0,
-          updatedProducts: orderProducts,
-        };
-      }
-
-      // Step 9: Sort available products by price (highest first) for optimal discount application
-      const sortedProducts = availableProducts
-        .map((product) => ({
-          ...product,
-          unitPrice: product.variant
-            ? parseFloat(product.variant.price)
-            : parseFloat(product.product.price),
-          originalIndex: orderProducts.indexOf(product),
-        }))
-        .sort((a, b) => b.unitPrice - a.unitPrice);
-
-      // Step 10: Apply discount to products (one product per usage)
-      let totalDiscountAmount = 0;
-      let usageCount = 0;
-      const maxUsage = Math.min(remainingUsage, sortedProducts.length);
-      const updatedProducts = [...orderProducts];
-      const couponUsages = [];
-
-      for (let i = 0; i < maxUsage && i < sortedProducts.length; i++) {
-        const product = sortedProducts[i];
-        let discountAmount = 0;
-
-        // Calculate discount based on coupon type
-        if (coupon.type === "percentage") {
-          // For percentage discount, apply to the total amount of this product (unitPrice * quantity)
-          const productTotal = product.unitPrice * product.quantity;
-          discountAmount = (productTotal * coupon.value) / 100;
-        } else if (coupon.type === "fixed") {
-          // For fixed discount, apply to individual units up to the quantity
-          const maxFixedDiscount = Math.min(
-            coupon.value,
-            product.unitPrice * product.quantity
-          );
-          discountAmount = maxFixedDiscount;
-        }
-
-        // Apply maximum discount amount limit
-        if (coupon.maxDiscountAmount) {
-          discountAmount = Math.min(discountAmount, coupon.maxDiscountAmount);
-        }
-
-        // Ensure discount doesn't exceed product total price
-        const productTotal = product.unitPrice * product.quantity;
-        discountAmount = Math.min(discountAmount, productTotal);
-
-        // Round to 2 decimal places to avoid floating point issues
-        discountAmount = Math.round(discountAmount * 100) / 100;
-
-        if (discountAmount > 0) {
-          totalDiscountAmount += discountAmount;
-          usageCount++;
-
-          // Update the original product in the order
-          const originalProduct = updatedProducts[product.originalIndex];
-          if (!originalProduct.appliedCoupons) {
-            originalProduct.appliedCoupons = [];
-          }
-
-          originalProduct.appliedCoupons.push({
-            couponId: couponId,
-            discountAmount: discountAmount,
-            appliedToPrice: productTotal,
-          });
-
-          // Create coupon usage record (ONE per product, not per quantity)
-          couponUsages.push({
-            userId: userId,
-            couponId: couponId,
-            productId: product.productId,
-            discountAmount: discountAmount,
-            originalPrice: productTotal,
-            quantity: product.quantity, // Track how many items this discount applies to
-            usedAt: now,
-          });
-        }
-      }
-
-      // Step 11: Save coupon usage records
-      if (couponUsages.length > 0) {
-        try {
-          await CouponUsage.bulkCreate(couponUsages, {
-            transaction,
-            ignoreDuplicates: false, // We want to know if there are duplicates
-          });
-        } catch (error) {
-          if (error.name === "SequelizeUniqueConstraintError") {
-            return {
-              success: false,
-              message:
-                "This coupon has already been used on some of these products",
-              discountAmount: 0,
-              updatedProducts: orderProducts,
-            };
-          }
-          throw error; // Re-throw other errors
-        }
-      }
-
-      // Step 12: Update coupon used count
-      await coupon.update(
-        { usedCount: coupon.usedCount + usageCount },
-        { transaction }
-      );
-
-      // Step 13: Calculate final discount per product for order summary
-      updatedProducts.forEach((product) => {
-        if (product.appliedCoupons && product.appliedCoupons.length > 0) {
-          product.totalCouponDiscount = product.appliedCoupons.reduce(
-            (sum, coupon) => sum + coupon.discountAmount,
-            0
-          );
-        } else {
-          product.totalCouponDiscount = 0;
-        }
-      });
-
-      return {
-        success: true,
-        message: "Coupon applied successfully",
-        discountAmount: Math.round(totalDiscountAmount * 100) / 100,
-        usageCount: usageCount,
-        updatedProducts: updatedProducts,
-        couponDetails: {
-          code: coupon.code,
-          name: coupon.name,
-          type: coupon.type,
-          value: coupon.value,
-        },
-      };
     } catch (error) {
-      console.error("Error applying coupon to order:", error);
-      return {
-        success: false,
-        message: "Error applying coupon",
-        discountAmount: 0,
-        updatedProducts: orderProducts,
-        error: error.message,
-      };
+        console.error("Error in applyCoupon API:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error while applying coupon",
+            totalDiscountAmount: 0,
+            updatedCartItems: req.body.cartItems || [],
+            appliedCoupons: [],
+            failedCoupons: [],
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
-  }
-
-  // Get coupons by codes
-  const coupons = await Coupon.findAll({
-    where: {
-      code: codesArray,
-    },
-    attributes: ["id", "code"],
-    transaction,
-  });
-
-  if (coupons.length === 0) {
-    return {
-      success: false,
-      totalDiscountAmount: 0,
-      updatedProducts: orderProducts,
-      appliedCoupons: [],
-      failedCoupons: codesArray.map((code) => ({
-        code: code,
-        reason: "Coupon not found",
-      })),
-    };
-  }
-
-  // Apply each coupon
-  for (const coupon of coupons) {
-    const result = await applySingleCoupon(
-      coupon.id,
-      userId,
-      updatedProducts,
-      transaction
-    );
-
-    if (result.success) {
-      totalDiscountAmount += result.discountAmount;
-      updatedProducts = result.updatedProducts;
-      appliedCoupons.push({
-        couponId: coupon.id,
-        couponCode: coupon.code,
-        discountAmount: result.discountAmount,
-        usageCount: result.usageCount,
-        couponDetails: result.couponDetails,
-      });
-    } else {
-      failedCoupons.push({
-        couponId: coupon.id,
-        couponCode: coupon.code,
-        reason: result.message,
-      });
-    }
-  }
-
-  return {
-    success: appliedCoupons.length > 0,
-    totalDiscountAmount: Math.round(totalDiscountAmount * 100) / 100,
-    updatedProducts: updatedProducts,
-    appliedCoupons: appliedCoupons,
-    failedCoupons: failedCoupons,
-  };
-}
+};
 
 
