@@ -243,7 +243,7 @@ export const getSingleOrder = async (req, res) => {
           },
           {
             model: Coupon,
-            as: "coupon",
+            as: "coupons",
           },
         ],
       });
