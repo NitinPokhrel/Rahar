@@ -44,11 +44,14 @@ const ProductVariant = (sequelize) => {
         allowNull: false,
         references: { model: "products", key: "id" },
       },
-      variantId: {
-        type: DataTypes.UUID,
-        allowNull: true, // Should be nullable for top-level variants
-        references: { model: "product_variants", key: "id" }, // Fixed table name
-      },
+
+      // variantId: {
+      //   type: DataTypes.UUID,
+      //   allowNull: true, // Should be nullable for top-level variants
+      //   references: { model: "product_variants", key: "id" }, // Fixed table name
+      // },
+
+      
       sku: {
         type: DataTypes.STRING(100),
         allowNull: false,

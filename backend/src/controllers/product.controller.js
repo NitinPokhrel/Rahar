@@ -104,8 +104,6 @@ export const getAllProducts = async (req, res) => {
 
     const whereConditions = { isActive: true };
 
-
-
     if (category) whereConditions.categoryId = category;
     if (minPrice || maxPrice) {
       whereConditions.price = {};
@@ -560,8 +558,7 @@ export const updateProduct = async (req, res) => {
     return res.status(500).json({
       success: false,
       status: "Error updating product",
-      message:
-        process.env.NODE_ENV === "development" ? error.message : undefined,
+      message: error.message,
     });
   }
 };
@@ -833,7 +830,7 @@ export const updateProductVariant = async (req, res) => {
     const replacementFile = req.files?.find(
       (file) => file.fieldname === "images"
     );
-    console.log("Replacement file:", replacementFile);
+    // console.log("Replacement file:", replacementFile);
 
     if (replacementFile) {
       try {
@@ -841,7 +838,7 @@ export const updateProductVariant = async (req, res) => {
         uploadedPublicId = newPhoto.public_id;
 
         if (variant.images?.public_id) {
-          console.log("Deleting old image:", variant.images.public_id);
+          // console.log("Deleting old image:", variant.images.public_id);
           await deleteImage(variant.images.public_id);
         }
 
@@ -876,7 +873,10 @@ export const updateProductVariant = async (req, res) => {
         price,
         comparePrice,
         stockQuantity,
-        attributes: attributes ? JSON.parse(attributes) : undefined,
+        attributes:
+          attributes && typeof attributes === "string"
+            ? JSON.parse(attributes)
+            : attributes,
         description,
         isActive,
         images: updatedImage,
@@ -958,17 +958,29 @@ export const restoreProductVariant = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 1. Find the variant
-    const variant = await ProductVariant.restore({ where: { id } });
+    // 1. Restore the variant (this undoes the soft delete)
+    const restoreResult = await ProductVariant.restore({ where: { id } });
+
+    if (!restoreResult || restoreResult === 0) {
+      return res.status(404).json({
+        success: false,
+        status: "Error restoring product variant",
+        message: "Product variant not found or already active",
+      });
+    }
+
+    // 2. Find the restored variant to update isActive
+    const variant = await ProductVariant.findByPk(id);
+
     if (!variant) {
       return res.status(404).json({
         success: false,
         status: "Error restoring product variant",
-        message: "Product variant not found",
+        message: "Product variant not found after restore",
       });
     }
 
-    // 2. Undo soft delete by setting isActive = true
+    // 3. Set isActive = true
     await variant.update({ isActive: true });
 
     return res.status(200).json({
@@ -977,11 +989,11 @@ export const restoreProductVariant = async (req, res) => {
       message: "Product variant restored successfully",
     });
   } catch (error) {
-    console.error("❌ Error Undo soft-deleting product variant:", error);
+    console.error("❌ Error restoring product variant:", error);
     return res.status(500).json({
       success: false,
-      message: "Internal server error",
-      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+      status: "Error restoring product variant",
+      message: error.message || "Internal server error",
     });
   }
 };

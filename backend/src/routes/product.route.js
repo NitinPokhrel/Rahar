@@ -12,7 +12,7 @@ import {
   restoreProduct,
   restoreProductVariant,
 } from "../controllers/product.controller.js";
-import { permissionMiddleware } from "../middleware/auth.middleware.js";
+import { authMiddleware, permissionMiddleware } from "../middleware/auth.middleware.js";
 import upload from "../config/multer.js";
 
 const router = express.Router();
@@ -24,17 +24,18 @@ router.get("/related/:productId", getRelatedProducts);
 router.get("/:id", getProductById);
 
 // Apply admin middleware to all routes below
+router.use(authMiddleware);
 router.use(permissionMiddleware("manageProducts"));
 
 // Admin-only routes
 router.post("/", upload.any(), createProduct);
 router.put("/:id", upload.any(), updateProduct);
 router.delete("/:id", deleteProduct);
-router.patch("/:id/undo", restoreProduct);
+router.patch("/:id/restore", restoreProduct);
 
 // Product variant routes
-router.put("/:id/variants", upload.any(), updateProductVariant);
-router.delete("/:id/variants", deleteProductVariant);
-router.patch("/:id/variants/undo", restoreProductVariant);
+router.put("/:id/variant", upload.any(), updateProductVariant);
+router.delete("/:id/variant", deleteProductVariant);
+router.patch("/:id/variant/restore", restoreProductVariant);
 
 export default router;
