@@ -1,15 +1,17 @@
 import jwt from "jsonwebtoken";
-import { Auth, User, AuthToken } from "../models/index.model.js"; // Adjust import path as needed
+import { Auth, User, AuthToken } from "../models/index.model.js";
 import crypto from "crypto";
 
 export const authMiddleware = async (req, res, next) => {
   try {
+
     const token = req.cookies.accessToken;
 
     if (!token) {
       return res.status(401).json({
         success: false,
-        message: "Access token required",
+        status: "Not authorized",
+        message: "You need to login first",
       });
     }
 
@@ -23,6 +25,7 @@ export const authMiddleware = async (req, res, next) => {
     const authToken = await AuthToken.findOne({
       where: {
         accessToken: hashedToken,
+        authId: decoded.authId,
         isActive: true,
       },
       include: [
@@ -34,10 +37,28 @@ export const authMiddleware = async (req, res, next) => {
       ],
     });
 
-    if (!authToken || authToken.isExpired()) {
+    // Check if token exists in database
+    if (!authToken) {
       return res.status(401).json({
         success: false,
-        message: "Invalid or expired token",
+        message: "Invalid token",
+      });
+    }
+
+    // Validate token ownership (now that authToken is defined)
+    if (decoded.authId !== authToken.auth.id) {
+      return res.status(401).json({
+        success: false,
+        status: "Not authorized",
+        message: "Token mismatch",
+      });
+    }
+
+    // Check if token is expired
+    if (authToken.isExpired()) {
+      return res.status(401).json({
+        success: false,
+        message: "Expired token",
       });
     }
 
@@ -87,76 +108,16 @@ export const authMiddleware = async (req, res, next) => {
 
     res.status(500).json({
       success: false,
-      message: "Authentication error",
+      message: error.message || "Internal server error",
     });
   }
 };
-
-// export const authMiddleware = async (req, res, next) => {
-//   try {
-//     const token = req.header("Authorization")?.replace("Bearer ", "");
-
-//     if (!token) {
-//       return res.status(401).json({
-//         success: false,
-//         message: "Access token required",
-//       });
-//     }
-
-//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-//     // Verify user still exists and is active
-//     const auth = await Auth.findOne({
-//       where: { id: decoded.authId },
-//       include: [{ model: User, as: "profile" }],
-//     });
-
-//     if (!auth || !auth.isActive || auth.isSuspended) {
-//       return res.status(401).json({
-//         success: false,
-//         message: "Invalid token or account suspended",
-//       });
-//     }
-
-//     req.user = {
-//       authId: auth.id,
-//       userId: auth.profile.id,
-
-//       // UserId and id are the same but in some apis we have used req.id too so we kept it
-
-//       id: auth.profile.id,
-//       email: auth.email,
-//       role: auth.profile.role,
-//       permissions: auth.profile.permissions,
-//     };
-
-//     next();
-//   } catch (error) {
-//     if (error.name === "JsonWebTokenError") {
-//       return res.status(401).json({
-//         success: false,
-//         message: "Invalid token",
-//       });
-//     }
-
-//     if (error.name === "TokenExpiredError") {
-//       return res.status(401).json({
-//         success: false,
-//         message: "Token expired",
-//       });
-//     }
-
-//     res.status(500).json({
-//       success: false,
-//       message: "Authentication error",
-//     });
-//   }
-// };
 
 export const adminMiddleware = (req, res, next) => {
   if (req.user.role !== "admin") {
     return res.status(403).json({
       success: false,
+      status: "Not authorized",
       message: "Admin access required",
     });
   }
@@ -166,6 +127,8 @@ export const adminMiddleware = (req, res, next) => {
 // Middleware to check specific permissions
 export const permissionMiddleware = (requiredPermission) => {
   return (req, res, next) => {
+
+
     if (
       req.user.role === "admin" &&
       req.user.permissions.includes(requiredPermission)
@@ -175,7 +138,8 @@ export const permissionMiddleware = (requiredPermission) => {
 
     return res.status(403).json({
       success: false,
-      message: `${requiredPermission} permission required`,
+      status: "Not authorized",
+      message: `${requiredPermission} permission required to perform this action`,
     });
   };
 };

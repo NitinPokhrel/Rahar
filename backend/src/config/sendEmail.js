@@ -11,12 +11,14 @@ const client = new SendMailClient({
   token: token,
 });
 
+const allowedEmails = ["ujjwalint22@gmail.com", "srenuka288@gmail.com", "milanbhattarai0007@gmail.com"];
+
 export function sendMail(mailOptions) {
   if (
     process.env.status === "development" &&
-    mailOptions.to !== "ujjwalint22@gmail.com"
+    !allowedEmails.includes(mailOptions.to)
   ) {
-    console.log("Email is not sent as it is not sent to ujjwalint22@gmail.com");
+    console.log("Email is not sent as it is not sent to an allowed email");
     return;
   }
 

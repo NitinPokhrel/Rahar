@@ -12,6 +12,7 @@ import {
 
 const router = Router();
 
+// All routes are auth-protected
 router.get("/", getWishlist);
 router.post("/add", addToWishlist);
 router.delete("/:wishlistItemId", removeFromWishlist);

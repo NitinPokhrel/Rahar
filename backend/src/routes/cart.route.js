@@ -8,9 +8,11 @@ import {
 
 const router = Router();
 
-router.route("/").get(getCartItems);
-router.route("/add").post(addCart);
-router.route("/update/:cartItemId").put(updateCart);
-router.route("/:cartItemId").delete(removeCartItem);
+
+// All routes are auth-protected
+router.get("/", getCartItems);
+router.post("/add", addCart);
+router.put("/update/:cartItemId", updateCart);
+router.delete("/:cartItemId", removeCartItem);
 
 export default router;

@@ -415,17 +415,6 @@ export const changeOrderStatus = async (req, res) => {
       "refunded",
     ];
 
-    if (
-      req.user.role !== "admin" ||
-      !req.user.permissions.includes("manageOrders")
-    ) {
-      return res.status(401).json({
-        success: false,
-        status: "Unauthorized",
-        message: "You are not allowed to change order status",
-      });
-    }
-
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({
         success: false,

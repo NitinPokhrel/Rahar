@@ -135,6 +135,7 @@ const User = (sequelize) => {
         type: DataTypes.ARRAY(
           DataTypes.ENUM(
             "manageUsers",
+            "manageCategories",
             "manageCoupons",
             "manageProducts",
             "manageOrders",
