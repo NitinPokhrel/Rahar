@@ -17,7 +17,7 @@ import wishlistRouter from "./routes/wishlist.route.js";
 import authRouter from "./routes/auth.route.js";
 import { authMiddleware } from "./middleware/auth.middleware.js";
 
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.DB_PORT || 8000;
 
 const app = express();
 
